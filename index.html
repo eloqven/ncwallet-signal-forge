@@ -96,6 +96,7 @@ input[type=number]:focus{border-color:var(--accent);}
 .wallet-history-page{font:600 11px 'DM Mono',monospace;color:var(--text2);}
 .wallet-demoNote{margin:8px 0 0;font-size:11px;color:var(--text2);}
 .wallet-demoNote strong{color:var(--accent2);}
+.wallet-syncMeta{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
 .wallet-history-nav{padding:7px 10px;border:1px solid var(--control-border);border-radius:var(--radius-sm);background:var(--bg3);color:var(--text);font:600 11px 'DM Sans',sans-serif;cursor:pointer;}
 .wallet-history-nav:disabled{opacity:.45;cursor:not-allowed;}
 .wallet-empty{padding:16px;color:var(--text2);font-size:12px;}
@@ -424,6 +425,10 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
       <div class="chart-title">NC Wallet Live Sync</div>
       <p class="ratio-lead" id="wallet-syncSummary">Reading wallet state and recent history from the authenticated NC Wallet browser tab.</p>
       <p class="wallet-demoNote" id="wallet-demoNote" hidden><strong>Public demo mode:</strong> wallet identity is hidden and balances are intentionally altered for safe screenshots.</p>
+      <div class="wallet-syncMeta">
+        <span class="wallet-chip" id="wallet-syncSourceBadge">Source unknown</span>
+        <span class="wallet-chip" id="wallet-syncFreshnessBadge">No sync yet</span>
+      </div>
     </div>
     <button class="wallet-action" id="wallet-syncButton" type="button">Sync wallet</button>
   </div>
@@ -795,6 +800,7 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
         <button class="wallet-history-nav" id="todo-refreshButton" type="button">Refresh to-do list</button>
       </div>
     </div>
+    <p class="todo-legend" id="todo-exportSummary">No exported snapshot yet.</p>
     <div class="todo-create">
       <input class="todo-create-input todo-create-task" id="todo-createTask" type="text" maxlength="120" placeholder="Future task title">
       <input class="todo-create-input todo-create-scope" id="todo-createScope" type="text" maxlength="240" placeholder="Short scope for the devs">
@@ -1020,6 +1026,15 @@ function saveBugItems(items){
   } catch(error){}
 }
 
+function formatFooterWhen(iso){
+  if(!iso) return '--';
+  try{
+    return new Date(iso).toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+  } catch(error){
+    return iso;
+  }
+}
+
 async function saveTodoItemsToDb(items){
   if(location.protocol==='file:') return;
   try{
@@ -1068,6 +1083,26 @@ async function loadBugItemsFromDb(){
     } catch(error){}
     renderBugTable();
   } catch(error){}
+}
+
+async function loadDbSummaryMeta(){
+  if(location.protocol==='file:') return;
+  var exportSummary=document.getElementById('todo-exportSummary');
+  if(!exportSummary) return;
+  try{
+    var response=await fetchWithServerToast('/api/local-db/summary',{headers:{accept:'application/json'}});
+    var payload=await response.json();
+    if(!response.ok || !payload.summary){
+      exportSummary.textContent='Export summary unavailable.';
+      return;
+    }
+    var latestExport=payload.summary.latestExportSnapshot;
+    exportSummary.textContent=latestExport
+      ? ('Latest export: '+latestExport.name+' at '+formatFooterWhen(latestExport.mtimeIso)+'.')
+      : 'No exported snapshot yet.';
+  } catch(error){
+    exportSummary.textContent='Export summary unavailable.';
+  }
 }
 
 async function queueTodoItemInDb(todoId){
@@ -1246,6 +1281,7 @@ if(todoRefreshButton){
     loadTodoItemsFromDb();
     renderBugTable();
     loadBugItemsFromDb();
+    loadDbSummaryMeta();
   });
 }
 var todoCreateButton=document.getElementById('todo-createButton');
@@ -1300,6 +1336,7 @@ if(todoExportSnapshotButton){
       if(!response.ok){
         throw new Error(payload.detail || payload.error || 'Export failed.');
       }
+      loadDbSummaryMeta();
       showAppToast('Snapshot exported',payload.filename || 'DB snapshot saved.',5000);
     } catch(error){
       showAppToast('Export failed',error.message,5000);
@@ -1322,6 +1359,7 @@ bugItemsState=mergeTodoItems(defaultBugItems,loadBugItemsFromLocalCache());
 renderBugTable();
 loadBugItemsFromDb();
 setInterval(loadBugItemsFromDb,8000);
+loadDbSummaryMeta();
 
 function updateSliderMax(){
   var u=document.getElementById('sel-unit').value;
@@ -3194,10 +3232,26 @@ run();
     return new Date(value).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
   }
 
-  function formatArchiveTick(value,timeframe){
+  function archiveTickLimit(timeframe){
+    if(String(timeframe)==='1') return 7;
+    if(String(timeframe)==='7') return 8;
+    return 9;
+  }
+
+  function formatArchiveTick(value,timeframe,index,ticks){
     var date=new Date(value);
+    var list=Array.isArray(ticks) ? ticks : [];
+    var stride=list.length ? Math.max(1,Math.ceil(list.length/archiveTickLimit(timeframe))) : 1;
+    var isEdge=index===0 || index===list.length-1;
+    if(index>0 && !isEdge && index%stride!==0){
+      return '';
+    }
     if(String(timeframe)==='1'){
-      return date.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+      var tickLabel=date.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+      if(index===0 || (list[index-1] && new Date(list[index-1].value).getDate()!==date.getDate())){
+        return date.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+' '+tickLabel;
+      }
+      return tickLabel;
     }
     return date.toLocaleDateString('en-GB',{day:'2-digit',month:'short'});
   }
@@ -3842,7 +3896,8 @@ run();
               ticks:{
                 color:text3,
                 font:{size:10,family:'DM Sans'},
-                callback:function(value){ return formatArchiveTick(value,timeframe); }
+                maxTicksLimit:archiveTickLimit(timeframe),
+                callback:function(value,index,ticks){ return formatArchiveTick(value,timeframe,index,ticks); }
               },
               grid:{color:grid}
             },
@@ -3868,7 +3923,8 @@ run();
         return context.parsed && context.parsed.y!=null ? ' '+context.dataset.label+': '+formatRatioValue(context.parsed.y) : '';
       };
       forecastChart.options.scales.x.ticks.color=text3;
-      forecastChart.options.scales.x.ticks.callback=function(value){ return formatArchiveTick(value,timeframe); };
+      forecastChart.options.scales.x.ticks.maxTicksLimit=archiveTickLimit(timeframe);
+      forecastChart.options.scales.x.ticks.callback=function(value,index,ticks){ return formatArchiveTick(value,timeframe,index,ticks); };
       forecastChart.options.scales.x.grid.color=grid;
       forecastChart.options.scales.y.ticks.color=text3;
       forecastChart.options.scales.y.grid.color=grid;
@@ -3997,6 +4053,8 @@ run();
   var lastTransactionMeta=document.getElementById('wallet-lastTransactionMeta');
   var visibleCount=document.getElementById('wallet-visibleCount');
   var visibleCountMeta=document.getElementById('wallet-visibleCountMeta');
+  var syncSourceBadge=document.getElementById('wallet-syncSourceBadge');
+  var syncFreshnessBadge=document.getElementById('wallet-syncFreshnessBadge');
   var walletTableBody=document.getElementById('wallet-walletTableBody');
   var historyTableBody=document.getElementById('wallet-historyTableBody');
   var historyStatus=document.getElementById('wallet-historyStatus');
@@ -4127,6 +4185,7 @@ run();
       walletTotalUsd:14.13,
       fundedWalletCount:4,
       visibleCount:entries.length,
+      walletSnapshotSource:'demo-wallets',
       totalsBySymbol:{BTC:0.00014321,CTC:0.02841,HSH:845,TON:0.7285},
       lastTransaction:{
         amountText:'+845.00 HSH',
@@ -4210,6 +4269,16 @@ run();
       });
     }
     return label||'--';
+  }
+
+  function formatSyncFreshness(iso){
+    if(!iso) return 'No sync yet';
+    var ageMs=Date.now()-Date.parse(iso);
+    if(!Number.isFinite(ageMs)) return 'Sync time unknown';
+    if(ageMs<60000) return 'Synced just now';
+    if(ageMs<3600000) return 'Synced '+Math.max(1,Math.round(ageMs/60000))+'m ago';
+    if(ageMs<86400000) return 'Synced '+Math.max(1,Math.round(ageMs/3600000))+'h ago';
+    return 'Synced '+Math.max(1,Math.round(ageMs/86400000))+'d ago';
   }
 
   function formatAmount(entry){
@@ -4547,6 +4616,17 @@ function syncModelWalletInput(payload){
 
   function renderStats(payload){
     var hasWalletOverview=Array.isArray(payload.wallets) && payload.wallets.length>0 && Number(payload.walletTotalUsd)>0;
+    if(syncSourceBadge){
+      var sourceLabel='Source unknown';
+      if(payload && payload.demoMode) sourceLabel='Demo mirror';
+      else if(payload && payload.walletSnapshotSource==='live-wallets-page') sourceLabel='Live wallets';
+      else if(payload && payload.walletSnapshotSource==='cached-wallets') sourceLabel='Cached wallets';
+      else if(payload && payload.walletSnapshotSource==='active-wallet-only') sourceLabel='Active wallet fallback';
+      syncSourceBadge.textContent=sourceLabel;
+    }
+    if(syncFreshnessBadge){
+      syncFreshnessBadge.textContent=(payload && payload.demoMode ? 'Demo ' : '')+formatSyncFreshness(payload && payload.syncedAt).replace(/^Synced\s*/,'');
+    }
     totalBalance.textContent=hasWalletOverview ? formatUsd(payload.walletTotalUsd) : '--';
     totalBalanceMeta.textContent=hasWalletOverview
       ? ((payload && payload.demoMode ? 'Sanitized demo sync ' : 'Synced ')+formatWhen(payload.syncedAt,payload.syncedAt)+'.')
@@ -4604,6 +4684,8 @@ function syncModelWalletInput(payload){
 
   function renderError(message){
     syncSummary.textContent=message;
+    if(syncSourceBadge) syncSourceBadge.textContent='Sync offline';
+    if(syncFreshnessBadge) syncFreshnessBadge.textContent='Sync offline';
     totalBalance.textContent='--';
     totalBalanceMeta.textContent='Sync unavailable.';
     fundedCount.textContent='--';

@@ -130,12 +130,31 @@ function trimDbList(list, maxSize) {
   return list.length > maxSize ? list.slice(list.length - maxSize) : list;
 }
 
+function getLatestExportMeta() {
+  ensureExportDir();
+  const files = fs.readdirSync(EXPORT_DIR)
+    .map((name) => {
+      const filePath = path.join(EXPORT_DIR, name);
+      const stats = fs.statSync(filePath);
+      return stats.isFile() ? {
+        name,
+        filePath,
+        size: stats.size,
+        mtimeIso: stats.mtime.toISOString(),
+      } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => Date.parse(b.mtimeIso) - Date.parse(a.mtimeIso));
+  return files.length ? files[0] : null;
+}
+
 function getDbSummary(db) {
   const latestSignal = db.signalViews.length ? db.signalViews[db.signalViews.length - 1] : null;
   const latestWallet = db.walletSyncs.length ? db.walletSyncs[db.walletSyncs.length - 1] : null;
   const latestWalletPage = db.walletPageViews.length ? db.walletPageViews[db.walletPageViews.length - 1] : null;
   const latestWalletHistoryRow = db.walletHistoryRows.length ? db.walletHistoryRows[db.walletHistoryRows.length - 1] : null;
   const latestModelDeltaAudit = Array.isArray(db.modelDeltaAudits) && db.modelDeltaAudits.length ? db.modelDeltaAudits[db.modelDeltaAudits.length - 1] : null;
+  const latestExportSnapshot = getLatestExportMeta();
   return {
     updatedAt: db.meta && db.meta.updatedAt ? db.meta.updatedAt : null,
     signalViewCount: db.signalViews.length,
@@ -178,6 +197,11 @@ function getDbSummary(db) {
       latestModelRateMicro: latestModelDeltaAudit.latestModelRateMicro,
       latestActualRateMicro: latestModelDeltaAudit.latestActualRateMicro,
       latestErrorPercent: latestModelDeltaAudit.latestErrorPercent,
+    } : null,
+    latestExportSnapshot: latestExportSnapshot ? {
+      name: latestExportSnapshot.name,
+      mtimeIso: latestExportSnapshot.mtimeIso,
+      size: latestExportSnapshot.size,
     } : null,
   };
 }
@@ -887,6 +911,11 @@ function buildRecursiveFollowupTask(cycle) {
       priority: 3,
       task: "Forecast archive axis cleanup",
       scope: "Tighten dense date-axis readability in the forecast archive views after the main model chart stabilization pass.",
+    },
+    {
+      priority: 2,
+      task: "Wallet sync freshness chip",
+      scope: "Show how recent the last successful NC Wallet sync is directly beside the wallet sync source badge.",
     },
   ];
   const recipe = recipes[(Math.max(1, cycle) - 1) % recipes.length];
