@@ -286,7 +286,8 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
 .todo-legend{margin-bottom:10px;font-size:12px;color:var(--text2);}
 .todo-exportList{display:grid;gap:6px;margin-bottom:12px;}
 .todo-exportItem{padding:8px 10px;border:1px solid var(--panel-border);border-radius:10px;background:var(--bg3);font:600 11px 'DM Mono',monospace;color:var(--text2);}
-.todo-exportItem strong{display:block;margin-bottom:3px;color:var(--text);}
+.todo-exportItem strong{display:block;margin-bottom:3px;color:var(--text);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.todo-exportSummaryName{display:inline-block;max-width:min(100%,460px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom;color:var(--text);}
 .todo-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;}
 .todo-toggle{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);}
 .todo-toggle input{accent-color:var(--accent);}
@@ -1209,8 +1210,8 @@ async function loadDbSummaryMeta(){
       return;
     }
     var latestExport=payload.summary.latestExportSnapshot;
-    exportSummary.textContent=latestExport
-      ? ('Latest export: '+latestExport.name+' at '+formatFooterWhen(latestExport.mtimeIso)+'.')
+    exportSummary.innerHTML=latestExport
+      ? ('Latest export: <span class=\"todo-exportSummaryName\" title=\"'+escapeHtml(latestExport.name)+'\">'+escapeHtml(latestExport.name)+'</span> at '+formatFooterWhen(latestExport.mtimeIso)+'.')
       : 'No exported snapshot yet.';
   } catch(error){
     exportSummary.textContent='Export summary unavailable.';
