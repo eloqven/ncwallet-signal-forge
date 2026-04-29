@@ -110,6 +110,7 @@ input[type=number]:focus{border-color:var(--accent);}
 .wallet-empty{padding:16px;color:var(--text2);font-size:12px;}
 .wallet-positive{color:var(--accent3);}
 .wallet-negative{color:var(--err);}
+.wallet-tag{display:inline-flex;align-items:center;justify-content:center;margin-left:6px;padding:2px 7px;border-radius:999px;background:color-mix(in srgb,var(--accent3) 14%,transparent);color:var(--accent3);font:700 10px 'DM Mono',monospace;letter-spacing:.08em;text-transform:uppercase;}
 .wallet-row{cursor:pointer;transition:background .18s ease,color .18s ease;}
 .wallet-row:hover td{background:color-mix(in srgb,var(--accent) 12%,transparent);}
 .wallet-row-active td{background:color-mix(in srgb,var(--accent) 16%,transparent);}
@@ -4689,19 +4690,22 @@ function syncModelWalletInput(payload){
     historyPage=Math.min(Math.max(historyPage,1),totalPages);
     var start=(historyPage-1)*historyPageSize;
     var pageEntries=entries.slice(start,start+historyPageSize);
+    var newRowCount=0;
     historyTableBody.innerHTML=pageEntries.map(function(entry,index){
       var rowKey=[entry && entry.datetimeIso,entry && entry.symbol,entry && entry.amountText,entry && entry.status].join('|');
-      var rowClass=previousEntries.length && !previousKeys.has(rowKey) ? ' class=\"wallet-row-new\"' : '';
+      var isNew=previousEntries.length && !previousKeys.has(rowKey);
+      if(isNew) newRowCount+=1;
+      var rowClass=isNew ? ' class=\"wallet-row-new\"' : '';
       return '<tr>'
         .replace('<tr>','<tr'+rowClass+'>')
         +'<td>'+(start+index+1)+'</td>'
         +'<td>'+formatWhen(entry.datetimeIso,entry.datetimeLabel)+'</td>'
         +'<td>'+entry.assetName+(entry.symbol?' ('+entry.symbol+')':'')+'</td>'
         +'<td>'+(formatAmount(entry))+'</td>'
-        +'<td>'+(entry.status||'--')+'</td>'
+        +'<td>'+(entry.status||'--')+(isNew?'<span class=\"wallet-tag\">New</span>':'')+'</td>'
       +'</tr>';
     }).join('');
-    historyStatus.textContent='Showing '+(start+1)+'-'+(start+pageEntries.length)+' of '+entries.length+' cached rows.';
+    historyStatus.textContent='Showing '+(start+1)+'-'+(start+pageEntries.length)+' of '+entries.length+' cached rows.'+(newRowCount?' '+newRowCount+' new on this page.':'');
     historyPageLabel.textContent='Page '+historyPage+' / '+totalPages;
     historyPrevButton.disabled=historyPage<=1;
     historyNextButton.disabled=historyPage>=totalPages;
