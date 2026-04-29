@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NC Wallet Data Archive</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="page-shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Static Gathered Data</p>
+        <h1>NC Wallet Data Archive</h1>
+        <p class="lede">
+          Standalone read-only page for already gathered local snapshots from the main app.
+        </p>
+      </div>
+      <div class="hero-actions">
+        <button id="reloadButton" class="action-button" type="button">Reload JSON</button>
+        <label class="file-picker">
+          <span>Open local JSON</span>
+          <input id="fileInput" type="file" accept=".json,application/json">
+        </label>
+      </div>
+    </header>
+
+    <section id="statusPanel" class="status-panel status-neutral">
+      Loading <code>../data/surf-db.json</code>...
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div>
+          <p class="section-kicker">Overview</p>
+          <h2>Snapshot Counts</h2>
+        </div>
+        <p id="metaStamp" class="section-note">Waiting for data...</p>
+      </div>
+      <div id="metricsGrid" class="metrics-grid"></div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div>
+          <p class="section-kicker">Latest Wallet Sync</p>
+          <h2>Balance State</h2>
+        </div>
+        <p id="walletSyncMeta" class="section-note">No wallet sync loaded.</p>
+      </div>
+      <div id="walletSyncSummary" class="summary-grid"></div>
+      <div class="table-shell">
+        <table>
+          <thead>
+            <tr>
+              <th>Wallet</th>
+              <th>Balance</th>
+              <th>USD</th>
+              <th>Change</th>
+            </tr>
+          </thead>
+          <tbody id="walletHoldingsBody">
+            <tr>
+              <td colspan="4" class="empty-cell">No wallet data yet.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <div class="panel-grid">
+      <section class="panel">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Cached Transactions</p>
+            <h2>Latest Rows</h2>
+          </div>
+          <p id="txMeta" class="section-note">No rows loaded.</p>
+        </div>
+        <div id="txAssetBars" class="bar-list"></div>
+        <div class="table-shell">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Time</th>
+                <th>Asset</th>
+                <th>Amount</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="txRowsBody">
+              <tr>
+                <td colspan="5" class="empty-cell">No cached transaction rows yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Wallet Page Snapshots</p>
+            <h2>Latest Coin Views</h2>
+          </div>
+          <p id="walletPageMeta" class="section-note">No page snapshots loaded.</p>
+        </div>
+        <div class="table-shell">
+          <table>
+            <thead>
+              <tr>
+                <th>Coin</th>
+                <th>Range</th>
+                <th>Price</th>
+                <th>Change</th>
+                <th>Saved</th>
+              </tr>
+            </thead>
+            <tbody id="walletPageBody">
+              <tr>
+                <td colspan="5" class="empty-cell">No wallet page snapshots yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="section-head">
+        <div>
+          <p class="section-kicker">Signal Snapshots</p>
+          <h2>Latest Surf Records</h2>
+        </div>
+        <p id="signalMeta" class="section-note">No signal snapshots loaded.</p>
+      </div>
+      <div id="signalCoverage" class="chips-row"></div>
+      <div class="table-shell">
+        <table>
+          <thead>
+            <tr>
+              <th>Pair</th>
+              <th>Timeframe</th>
+              <th>Overlay</th>
+              <th>Forecast</th>
+              <th>Saved</th>
+            </tr>
+          </thead>
+          <tbody id="signalRowsBody">
+            <tr>
+              <td colspan="5" class="empty-cell">No signal snapshots yet.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>

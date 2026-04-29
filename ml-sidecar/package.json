@@ -1,0 +1,9 @@
+{
+  "name": "ncwallet-ml-sidecar",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Minimal ML sidecar scaffold for NC Wallet data.",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
