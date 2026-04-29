@@ -483,6 +483,8 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
       <div class="wallet-syncMeta">
         <span class="wallet-chip" id="wallet-syncSourceBadge">Source unknown</span>
         <span class="wallet-chip" id="wallet-syncFreshnessBadge">No sync yet</span>
+        <span class="wallet-chip" id="wallet-fundedAssetsBadge">0 funded</span>
+        <span class="wallet-chip" id="wallet-visibleAssetsBadge">0 visible assets</span>
       </div>
     </div>
     <button class="wallet-action" id="wallet-syncButton" type="button" title="Read the authenticated NC Wallet tab and update wallet totals, cached history, and the mirrored coin page.">Sync wallet</button>
@@ -4418,6 +4420,8 @@ run();
   var visibleStat=document.getElementById('wallet-visibleStat');
   var syncSourceBadge=document.getElementById('wallet-syncSourceBadge');
   var syncFreshnessBadge=document.getElementById('wallet-syncFreshnessBadge');
+  var fundedAssetsBadge=document.getElementById('wallet-fundedAssetsBadge');
+  var visibleAssetsBadge=document.getElementById('wallet-visibleAssetsBadge');
   var walletTableBody=document.getElementById('wallet-walletTableBody');
   var historyTableBody=document.getElementById('wallet-historyTableBody');
   var historyStatus=document.getElementById('wallet-historyStatus');
@@ -5045,6 +5049,17 @@ function syncModelWalletInput(payload){
       syncFreshnessBadge.textContent=(payload && payload.demoMode ? 'Demo ' : '')+formatSyncFreshness(payload && payload.syncedAt).replace(/^Synced\s*/,'');
       syncFreshnessBadge.title='How recent the last successful wallet sync is.';
     }
+    if(fundedAssetsBadge){
+      fundedAssetsBadge.textContent=String(payload && payload.fundedWalletCount || 0)+' funded';
+      fundedAssetsBadge.title='How many wallet assets currently have funds.';
+    }
+    if(visibleAssetsBadge){
+      var visibleAssetCount=payload && payload.totalsBySymbol ? Object.keys(payload.totalsBySymbol).filter(function(symbol){
+        return Number.isFinite(payload.totalsBySymbol[symbol]) && payload.totalsBySymbol[symbol]!==0;
+      }).length : 0;
+      visibleAssetsBadge.textContent=String(visibleAssetCount)+' visible assets';
+      visibleAssetsBadge.title='How many distinct assets appear in the currently visible history totals.';
+    }
     totalBalance.textContent=hasWalletOverview ? formatUsd(payload.walletTotalUsd) : '--';
     totalBalanceMeta.textContent=hasWalletOverview
       ? ((payload && payload.demoMode ? 'Sanitized demo sync ' : 'Synced ')+formatWhen(payload.syncedAt,payload.syncedAt)+'.')
@@ -5113,6 +5128,8 @@ function syncModelWalletInput(payload){
     if(syncFreshnessBadge) syncFreshnessBadge.textContent='Sync offline';
     if(syncSourceBadge) syncSourceBadge.title='Wallet sync is currently unavailable.';
     if(syncFreshnessBadge) syncFreshnessBadge.title='Wallet sync is currently unavailable.';
+    if(fundedAssetsBadge) fundedAssetsBadge.textContent='0 funded';
+    if(visibleAssetsBadge) visibleAssetsBadge.textContent='0 visible assets';
     totalBalance.textContent='--';
     totalBalanceMeta.textContent='Sync unavailable.';
     fundedCount.textContent='--';
