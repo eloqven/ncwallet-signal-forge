@@ -611,7 +611,15 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
         <div class="chart-title">Model delta audit</div>
         <p class="ratio-lead" id="wallet-auditSummary">Recent wallet-sync model deltas will appear here.</p>
       </div>
-      <span class="wallet-chip" id="wallet-auditCount">0 rows</span>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span class="wallet-chip" id="wallet-auditCount">0 rows</span>
+        <select class="select-ui" id="wallet-auditFilter" aria-label="Audit filter">
+          <option value="all">All rows</option>
+          <option value="newtx">New tx only</option>
+          <option value="walletdelta">Wallet delta only</option>
+          <option value="error">Error rows only</option>
+        </select>
+      </div>
     </div>
     <div class="wallet-table-wrap">
       <table>
@@ -4295,6 +4303,7 @@ run();
   var historyNextButton=document.getElementById('wallet-historyNext');
   var auditSummary=document.getElementById('wallet-auditSummary');
   var auditCount=document.getElementById('wallet-auditCount');
+  var auditFilter=document.getElementById('wallet-auditFilter');
   var auditTableBody=document.getElementById('wallet-auditTableBody');
   var detailSummary=document.getElementById('wallet-detailSummary');
   var detailState=document.getElementById('wallet-detailState');
@@ -4832,15 +4841,24 @@ function syncModelWalletInput(payload){
   function renderAuditRows(items){
     lastAuditItems=Array.isArray(items) ? items.slice() : [];
     if(!auditTableBody || !auditSummary || !auditCount) return;
-    if(!lastAuditItems.length){
+    var filteredItems=lastAuditItems.slice();
+    var filterMode=auditFilter ? auditFilter.value : 'all';
+    if(filterMode==='newtx'){
+      filteredItems=filteredItems.filter(function(item){ return Number(item && item.newHistoryRowCount)>0; });
+    } else if(filterMode==='walletdelta'){
+      filteredItems=filteredItems.filter(function(item){ return Math.abs(Number(item && item.walletTotalUsdDelta)||0)>0; });
+    } else if(filterMode==='error'){
+      filteredItems=filteredItems.filter(function(item){ return Math.abs(Number(item && item.latestErrorPercent)||0)>=5; });
+    }
+    if(!filteredItems.length){
       auditSummary.textContent='Recent wallet-sync model deltas will appear here.';
       auditCount.textContent='0 rows';
-      auditTableBody.innerHTML='<tr><td colspan=\"7\" class=\"wallet-empty\">No saved model delta audits yet.</td></tr>';
+      auditTableBody.innerHTML='<tr><td colspan=\"7\" class=\"wallet-empty\">'+(lastAuditItems.length?'No audit rows match the current filter.':'No saved model delta audits yet.')+'</td></tr>';
       return;
     }
     auditSummary.textContent='Saved sync audits showing new transaction counts, wallet deltas, and latest model versus actual CTC daily rate.';
-    auditCount.textContent=String(lastAuditItems.length)+' rows';
-    auditTableBody.innerHTML=lastAuditItems.map(function(item){
+    auditCount.textContent=String(filteredItems.length)+' rows';
+    auditTableBody.innerHTML=filteredItems.map(function(item){
       var holdings=item && item.holdingsDeltaBySymbol ? Object.keys(item.holdingsDeltaBySymbol).sort().map(function(symbol){
         var value=Number(item.holdingsDeltaBySymbol[symbol])||0;
         return (value>=0?'+':'')+value.toFixed(symbol==='HSH'?2:8)+' '+symbol;
@@ -5097,6 +5115,11 @@ function syncModelWalletInput(payload){
       historyPageSize=Number(historyPageSizeSelect.value)||20;
       historyPage=1;
       if(lastPayload) renderHistory(lastPayload);
+    });
+  }
+  if(auditFilter){
+    auditFilter.addEventListener('change',function(){
+      renderAuditRows(lastAuditItems);
     });
   }
   detailTimeframes.addEventListener('click',function(event){
