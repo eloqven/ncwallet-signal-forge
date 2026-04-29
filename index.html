@@ -848,7 +848,15 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
     <div class="chart-title">Project To-Do</div>
     <p class="todo-legend">Priority: 🔴 highest, 🟠 medium, 🟡 lower. Priorities are saved into the shared project DB.</p>
     <div class="todo-toolbar">
-      <label class="todo-toggle"><input id="todo-showAllToggle" type="checkbox"><span id="todo-showAllLabel">Show all tasks</span></label>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <label class="todo-toggle"><input id="todo-showAllToggle" type="checkbox"><span id="todo-showAllLabel">Show all tasks</span></label>
+        <select class="select-ui" id="todo-priorityFilter" aria-label="To-do priority filter">
+          <option value="all">All priorities</option>
+          <option value="1">🔴 only</option>
+          <option value="2">🟠 only</option>
+          <option value="3">🟡 only</option>
+        </select>
+      </div>
       <div class="todo-links">
         <a class="wallet-history-nav todo-linkButton" href="/static-data/index.html" target="_blank" rel="noreferrer">Open gathered data</a>
         <a class="wallet-history-nav todo-linkButton" href="http://127.0.0.1:4280" target="_blank" rel="noreferrer">Open ML Lab</a>
@@ -1309,11 +1317,15 @@ function renderTodoTable(){
   var body=document.getElementById('todo-tableBody');
   var showAllToggle=document.getElementById('todo-showAllToggle');
   var showAllLabel=document.getElementById('todo-showAllLabel');
+  var priorityFilter=document.getElementById('todo-priorityFilter');
   if(!body) return;
   var showAll=showAllToggle ? showAllToggle.checked : true;
+  var priorityValue=priorityFilter ? priorityFilter.value : 'all';
   if(showAllLabel) showAllLabel.textContent=showAll ? 'Show all tasks' : 'Show open tasks only';
   var items=sortTodoItems(loadTodoItems()).filter(function(item){
-    return showAll || item.status!=='done';
+    if(!showAll && item.status==='done') return false;
+    if(priorityValue!=='all' && String(item.priority)!==String(priorityValue)) return false;
+    return true;
   });
   body.innerHTML=items.map(function(item){
     var isDone=item.status==='done';
@@ -1376,6 +1388,10 @@ document.addEventListener('change',function(event){
   var target=event.target;
   if(target && target.matches('#todo-showAllToggle')){
     saveTodoShowAll(Boolean(target.checked));
+    renderTodoTable();
+    return;
+  }
+  if(target && target.matches('#todo-priorityFilter')){
     renderTodoTable();
     return;
   }
