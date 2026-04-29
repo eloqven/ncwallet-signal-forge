@@ -117,6 +117,7 @@ input[type=number]:focus{border-color:var(--accent);}
 .wallet-history-nav{padding:7px 10px;border:1px solid var(--control-border);border-radius:var(--radius-sm);background:var(--bg3);color:var(--text);font:600 11px 'DM Sans',sans-serif;cursor:pointer;}
 .wallet-history-nav:disabled{opacity:.45;cursor:not-allowed;}
 .wallet-empty{padding:16px;color:var(--text2);font-size:12px;}
+.wallet-empty strong{display:block;margin-bottom:4px;color:var(--text);font-size:12px;}
 .wallet-positive{color:var(--accent3);}
 .wallet-negative{color:var(--err);}
 .wallet-tag{display:inline-flex;align-items:center;justify-content:center;margin-left:6px;padding:2px 7px;border-radius:999px;background:color-mix(in srgb,var(--accent3) 14%,transparent);color:var(--accent3);font:700 10px 'DM Mono',monospace;letter-spacing:.08em;text-transform:uppercase;}
@@ -4766,6 +4767,10 @@ run();
       .replace(/'/g,'&#39;');
   }
 
+  function buildEmptyStateHtml(title,message){
+    return '<div class=\"wallet-empty\"><strong>'+escapeHtml(title||'Nothing to show')+'</strong>'+escapeHtml(message||'')+'</div>';
+  }
+
   function renderPriceMarkup(text){
     var match=String(text||'').trim().match(/^([0-9.,]+)\s+([A-Z]+)$/);
     if(!match) return '--';
@@ -4828,12 +4833,12 @@ function syncModelWalletInput(payload){
       detailActionGrid.innerHTML=actions && actions.length
         ? actions.map(function(action){
             var meta=getWalletActionMeta(action);
-            return '<div class="wallet-action-card">'
-              +'<div class="wallet-action-cardIcon '+meta.cls+'">'+escapeHtml(meta.icon)+'</div>'
-              +'<div class="wallet-action-cardText"><strong>'+escapeHtml((action && action.title) || '--')+'</strong><span>'+escapeHtml((action && action.subtitle) || '--')+'</span></div>'
-            +'</div>';
+      return '<div class="wallet-action-card">'
+            +'<div class="wallet-action-cardIcon '+meta.cls+'">'+escapeHtml(meta.icon)+'</div>'
+            +'<div class="wallet-action-cardText"><strong>'+escapeHtml((action && action.title) || '--')+'</strong><span>'+escapeHtml((action && action.subtitle) || '--')+'</span></div>'
+          +'</div>';
           }).join('')
-        : '<div class="wallet-empty">'+escapeHtml(emptyMessage)+'</div>';
+        : buildEmptyStateHtml('No visible actions',emptyMessage);
     }
 
     function renderBlankDetail(message){
@@ -4984,7 +4989,7 @@ function syncModelWalletInput(payload){
     wallets=wallets.filter(function(wallet){ return wallet && wallet.symbol; });
     var previousWallets=previousPayload && Array.isArray(previousPayload.wallets) ? previousPayload.wallets : [];
     if(!wallets.length){
-      walletTableBody.innerHTML='<tr><td colspan=\"4\" class=\"wallet-empty\">No wallet rows found in the live NC Wallet tab.</td></tr>';
+      walletTableBody.innerHTML='<tr><td colspan=\"4\">'+buildEmptyStateHtml('No wallet rows yet','Open the Wallets page in NC Wallet, then sync again.')+'</td></tr>';
       return;
     }
     walletTableBody.innerHTML=wallets.map(function(wallet){
@@ -5020,7 +5025,7 @@ function syncModelWalletInput(payload){
       return [entry && entry.datetimeIso,entry && entry.symbol,entry && entry.amountText,entry && entry.status].join('|');
     }));
     if(!entries.length){
-      historyTableBody.innerHTML='<tr><td colspan=\"5\" class=\"wallet-empty\">'+(term?'No cached rows match the current filter.':'No transaction rows found in the live NC Wallet tab.')+'</td></tr>';
+      historyTableBody.innerHTML='<tr><td colspan=\"5\">'+buildEmptyStateHtml(term?'No filtered rows':'No transaction rows yet',term?'Try a broader asset or status filter.':'Open wallet history in NC Wallet, then sync again.')+'</td></tr>';
       historyStatus.textContent=term?'Showing 0 filtered rows.':'Showing 0 rows.';
       historyPageLabel.textContent='Page 1 / 1';
       historyPrevButton.disabled=true;
@@ -5067,7 +5072,7 @@ function syncModelWalletInput(payload){
     if(!filteredItems.length){
       auditSummary.textContent='Recent wallet-sync model deltas will appear here.';
       auditCount.textContent='0 rows';
-      auditTableBody.innerHTML='<tr><td colspan=\"7\" class=\"wallet-empty\">'+(lastAuditItems.length?'No audit rows match the current filter.':'No saved model delta audits yet.')+'</td></tr>';
+      auditTableBody.innerHTML='<tr><td colspan=\"7\">'+buildEmptyStateHtml(lastAuditItems.length?'No audit rows match':'No saved model deltas yet',lastAuditItems.length?'Change the audit filter to widen the result set.':'Run another wallet sync to create more model audit rows.')+'</td></tr>';
       return;
     }
     auditSummary.textContent='Saved sync audits showing new transaction counts, wallet deltas, and latest model versus actual CTC daily rate.';
@@ -5114,7 +5119,7 @@ function syncModelWalletInput(payload){
       } else {
         auditSummary.textContent='Audit history unavailable: '+error.message;
         auditCount.textContent='0 rows';
-        auditTableBody.innerHTML='<tr><td colspan=\"7\" class=\"wallet-empty\">Audit history unavailable.</td></tr>';
+        auditTableBody.innerHTML='<tr><td colspan=\"7\">'+buildEmptyStateHtml('Audit history unavailable','The local server could not return saved audit rows right now.')+'</td></tr>';
       }
     }
   }
@@ -5223,8 +5228,8 @@ function syncModelWalletInput(payload){
     lastTransactionMeta.textContent='Sync unavailable.';
     visibleCount.textContent='--';
     visibleCountMeta.textContent='Sync unavailable.';
-    walletTableBody.innerHTML='<tr><td colspan=\"4\" class=\"wallet-empty\">'+message+'</td></tr>';
-    historyTableBody.innerHTML='<tr><td colspan=\"5\" class=\"wallet-empty\">'+message+'</td></tr>';
+    walletTableBody.innerHTML='<tr><td colspan=\"4\">'+buildEmptyStateHtml('Wallet sync unavailable',message)+'</td></tr>';
+    historyTableBody.innerHTML='<tr><td colspan=\"5\">'+buildEmptyStateHtml('History sync unavailable',message)+'</td></tr>';
     historyStatus.textContent='Showing 0 rows.';
     historyPageLabel.textContent='Page 1 / 1';
     historyPrevButton.disabled=true;
@@ -5250,7 +5255,7 @@ function syncModelWalletInput(payload){
     detailTimeframes.innerHTML='';
     detailSource.textContent='--';
     detailSourceMeta.textContent='Sync unavailable.';
-    detailActionGrid.innerHTML='<div class=\"wallet-empty\">'+message+'</div>';
+    detailActionGrid.innerHTML=buildEmptyStateHtml('Live mirror unavailable',message);
   }
 
   function renderHealthWarning(health){
