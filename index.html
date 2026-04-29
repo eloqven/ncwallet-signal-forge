@@ -284,6 +284,13 @@ tr:hover td{background:color-mix(in srgb,var(--accent) 9%,var(--row-hover));}
 body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(217,119,6,0.24);}
 .app-toast strong{display:block;margin-bottom:4px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--warn);}
 .app-toast span{display:block;font-size:12px;line-height:1.45;color:var(--text2);}
+.shortcut-overlay{position:fixed;inset:0;z-index:9998;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(8,11,18,0.62);backdrop-filter:blur(8px);}
+.shortcut-dialog{width:min(100%,520px);padding:20px;border:1px solid var(--panel-border);border-radius:18px;background:var(--bg2);box-shadow:var(--shadow);}
+.shortcut-dialog h2{margin:0 0 10px;font-size:16px;color:var(--text);}
+.shortcut-dialog p{margin:0 0 12px;font-size:12px;color:var(--text2);}
+.shortcut-list{display:grid;gap:8px;}
+.shortcut-item{display:flex;justify-content:space-between;gap:12px;padding:10px 12px;border:1px solid var(--panel-border);border-radius:12px;background:var(--bg3);font-size:12px;color:var(--text2);}
+.shortcut-item kbd{padding:2px 6px;border:1px solid var(--control-border);border-radius:8px;background:var(--bg2);font:700 11px 'DM Mono',monospace;color:var(--text);}
 .app-footer{margin-top:1.25rem;}
 .todo-legend{margin-bottom:10px;font-size:12px;color:var(--text2);}
 .todo-exportList{display:grid;gap:6px;margin-bottom:12px;}
@@ -351,6 +358,19 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
   <div class="app-toast" id="app-toast" hidden>
     <strong id="app-toastTitle">Local server warning</strong>
     <span id="app-toastBody">Live sync may pause for a few seconds.</span>
+  </div>
+</div>
+<div class="shortcut-overlay" id="shortcut-overlay" hidden>
+  <div class="shortcut-dialog" role="dialog" aria-modal="true" aria-labelledby="shortcut-title">
+    <h2 id="shortcut-title">Shortcut Help</h2>
+    <p>Press <kbd>Esc</kbd> to close.</p>
+    <div class="shortcut-list">
+      <div class="shortcut-item"><span>Open or close this help sheet</span><kbd>?</kbd></div>
+      <div class="shortcut-item"><span>Refresh wallet and ratio panels together</span><kbd>R</kbd></div>
+      <div class="shortcut-item"><span>Toggle day or night theme</span><kbd>T</kbd></div>
+      <div class="shortcut-item"><span>Jump to wallet sync section</span><kbd>W</kbd></div>
+      <div class="shortcut-item"><span>Jump to ratio monitor section</span><kbd>G</kbd></div>
+    </div>
   </div>
 </div>
 
@@ -1356,6 +1376,48 @@ function initSectionAnchors(){
   });
 }
 
+function initShortcutOverlay(){
+  var overlay=document.getElementById('shortcut-overlay');
+  if(!overlay) return;
+  function setOpen(next){
+    overlay.hidden=!next;
+  }
+  document.addEventListener('keydown',function(event){
+    if(event.target && /input|textarea|select/i.test(event.target.tagName)) return;
+    if(event.key==='?'){
+      event.preventDefault();
+      setOpen(overlay.hidden);
+      return;
+    }
+    if(event.key==='Escape' && !overlay.hidden){
+      setOpen(false);
+      return;
+    }
+    if(overlay.hidden && (event.key==='r' || event.key==='R')){
+      var refreshButton=document.getElementById('refresh-livePanels');
+      if(refreshButton){ event.preventDefault(); refreshButton.click(); }
+      return;
+    }
+    if(overlay.hidden && (event.key==='t' || event.key==='T')){
+      var title=document.getElementById('page-title');
+      if(title){ event.preventDefault(); title.click(); }
+      return;
+    }
+    if(overlay.hidden && (event.key==='w' || event.key==='W')){
+      var wallet=document.getElementById('wallet-liveSyncPanel');
+      if(wallet){ event.preventDefault(); wallet.scrollIntoView({behavior:'smooth',block:'start'}); }
+      return;
+    }
+    if(overlay.hidden && (event.key==='g' || event.key==='G')){
+      var ratio=document.getElementById('ratio-monitorPanel');
+      if(ratio){ event.preventDefault(); ratio.scrollIntoView({behavior:'smooth',block:'start'}); }
+    }
+  });
+  overlay.addEventListener('click',function(event){
+    if(event.target===overlay) setOpen(false);
+  });
+}
+
 async function queueTodoItemInDb(todoId){
   if(location.protocol==='file:') return null;
   var response=await fetchWithServerToast('/api/local-db/todo/queue',{
@@ -1626,6 +1688,7 @@ initSectionJump();
 initLivePanelRefresh();
 initPanelCollapseButtons();
 initSectionAnchors();
+initShortcutOverlay();
 
 function updateSliderMax(){
   var u=document.getElementById('sel-unit').value;
