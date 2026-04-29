@@ -336,7 +336,7 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
   <button type="button" data-jump-target="wallet-liveSyncPanel">Wallet</button>
   <button type="button" data-jump-target="ratio-monitorPanel">Ratio</button>
   <button type="button" data-jump-target="todo-cardPanel">To-Do</button>
-  <button type="button" id="refresh-livePanels">Refresh live</button>
+  <button type="button" id="refresh-livePanels" title="Refresh wallet sync and ratio analysis together.">Refresh live</button>
 </nav>
 <div class="app-toast-wrap" aria-live="polite" aria-atomic="true">
   <div class="app-toast" id="app-toast" hidden>
@@ -470,7 +470,7 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
         <span class="wallet-chip" id="wallet-syncFreshnessBadge">No sync yet</span>
       </div>
     </div>
-    <button class="wallet-action" id="wallet-syncButton" type="button">Sync wallet</button>
+    <button class="wallet-action" id="wallet-syncButton" type="button" title="Read the authenticated NC Wallet tab and update wallet totals, cached history, and the mirrored coin page.">Sync wallet</button>
   </div>
   <div class="wallet-stats-grid">
     <div class="wallet-stat" id="wallet-totalStat">
@@ -4985,9 +4985,11 @@ function syncModelWalletInput(payload){
       else if(payload && payload.walletSnapshotSource==='cached-wallets') sourceLabel='Cached wallets';
       else if(payload && payload.walletSnapshotSource==='active-wallet-only') sourceLabel='Active wallet fallback';
       syncSourceBadge.textContent=sourceLabel;
+      syncSourceBadge.title='Where the current wallet summary came from during the last sync.';
     }
     if(syncFreshnessBadge){
       syncFreshnessBadge.textContent=(payload && payload.demoMode ? 'Demo ' : '')+formatSyncFreshness(payload && payload.syncedAt).replace(/^Synced\s*/,'');
+      syncFreshnessBadge.title='How recent the last successful wallet sync is.';
     }
     totalBalance.textContent=hasWalletOverview ? formatUsd(payload.walletTotalUsd) : '--';
     totalBalanceMeta.textContent=hasWalletOverview
@@ -5055,6 +5057,8 @@ function syncModelWalletInput(payload){
     syncSummary.textContent=message;
     if(syncSourceBadge) syncSourceBadge.textContent='Sync offline';
     if(syncFreshnessBadge) syncFreshnessBadge.textContent='Sync offline';
+    if(syncSourceBadge) syncSourceBadge.title='Wallet sync is currently unavailable.';
+    if(syncFreshnessBadge) syncFreshnessBadge.title='Wallet sync is currently unavailable.';
     totalBalance.textContent='--';
     totalBalanceMeta.textContent='Sync unavailable.';
     fundedCount.textContent='--';
