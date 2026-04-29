@@ -148,6 +148,24 @@ function getLatestExportMeta() {
   return files.length ? files[0] : null;
 }
 
+function getRecentExportMeta(limit = 5) {
+  ensureExportDir();
+  return fs.readdirSync(EXPORT_DIR)
+    .map((name) => {
+      const filePath = path.join(EXPORT_DIR, name);
+      const stats = fs.statSync(filePath);
+      return stats.isFile() ? {
+        name,
+        filePath,
+        size: stats.size,
+        mtimeIso: stats.mtime.toISOString(),
+      } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => Date.parse(b.mtimeIso) - Date.parse(a.mtimeIso))
+    .slice(0, Math.max(1, Number(limit) || 5));
+}
+
 function getDbSummary(db) {
   const latestSignal = db.signalViews.length ? db.signalViews[db.signalViews.length - 1] : null;
   const latestWallet = db.walletSyncs.length ? db.walletSyncs[db.walletSyncs.length - 1] : null;
@@ -1555,6 +1573,20 @@ function handleTodoRead(res) {
   }
 }
 
+function handleExportListRead(res) {
+  try {
+    sendJson(res, 200, {
+      ok: true,
+      items: getRecentExportMeta(5),
+    });
+  } catch (error) {
+    sendJson(res, 500, {
+      error: "Failed to read export history",
+      detail: formatError(error),
+    });
+  }
+}
+
 function handleModelDeltaAuditRead(res) {
   try {
     sendJson(res, 200, readModelDeltaAudits());
@@ -1657,6 +1689,11 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === "/api/local-db/export" && req.method === "POST") {
     handleDbExport(res);
+    return;
+  }
+
+  if (url.pathname === "/api/local-db/exports" && req.method === "GET") {
+    handleExportListRead(res);
     return;
   }
 

@@ -277,6 +277,9 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
 .app-toast span{display:block;font-size:12px;line-height:1.45;color:var(--text2);}
 .app-footer{margin-top:1.25rem;}
 .todo-legend{margin-bottom:10px;font-size:12px;color:var(--text2);}
+.todo-exportList{display:grid;gap:6px;margin-bottom:12px;}
+.todo-exportItem{padding:8px 10px;border:1px solid var(--panel-border);border-radius:10px;background:var(--bg3);font:600 11px 'DM Mono',monospace;color:var(--text2);}
+.todo-exportItem strong{display:block;margin-bottom:3px;color:var(--text);}
 .todo-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;}
 .todo-toggle{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);}
 .todo-toggle input{accent-color:var(--accent);}
@@ -866,6 +869,7 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
       </div>
     </div>
     <p class="todo-legend" id="todo-exportSummary">No exported snapshot yet.</p>
+    <div class="todo-exportList" id="todo-exportHistory" hidden></div>
     <div class="todo-create">
       <input class="todo-create-input todo-create-task" id="todo-createTask" type="text" maxlength="120" placeholder="Future task title">
       <input class="todo-create-input todo-create-scope" id="todo-createScope" type="text" maxlength="240" placeholder="Short scope for the devs">
@@ -1184,6 +1188,28 @@ async function loadDbSummaryMeta(){
   }
 }
 
+async function loadExportHistoryMeta(){
+  if(location.protocol==='file:') return;
+  var list=document.getElementById('todo-exportHistory');
+  if(!list) return;
+  try{
+    var response=await fetchWithServerToast('/api/local-db/exports',{headers:{accept:'application/json'}});
+    var payload=await response.json();
+    if(!response.ok || !Array.isArray(payload.items) || !payload.items.length){
+      list.hidden=true;
+      list.innerHTML='';
+      return;
+    }
+    list.hidden=false;
+    list.innerHTML=payload.items.map(function(item){
+      return '<div class=\"todo-exportItem\"><strong>'+escapeHtml(item.name)+'</strong><span>'+formatFooterWhen(item.mtimeIso)+' · '+Math.max(1,Math.round((Number(item.size)||0)/1024))+' KB</span></div>';
+    }).join('');
+  } catch(error){
+    list.hidden=true;
+    list.innerHTML='';
+  }
+}
+
 function initSectionJump(){
   var bar=document.querySelector('.section-jump');
   if(!bar) return;
@@ -1442,6 +1468,7 @@ if(todoRefreshButton){
     renderBugTable();
     loadBugItemsFromDb();
     loadDbSummaryMeta();
+    loadExportHistoryMeta();
   });
 }
 var todoCreateButton=document.getElementById('todo-createButton');
@@ -1497,6 +1524,7 @@ if(todoExportSnapshotButton){
         throw new Error(payload.detail || payload.error || 'Export failed.');
       }
       loadDbSummaryMeta();
+      loadExportHistoryMeta();
       showAppToast('Snapshot exported',payload.filename || 'DB snapshot saved.',5000);
     } catch(error){
       showAppToast('Export failed',error.message,5000);
@@ -1520,6 +1548,7 @@ renderBugTable();
 loadBugItemsFromDb();
 setInterval(loadBugItemsFromDb,8000);
 loadDbSummaryMeta();
+loadExportHistoryMeta();
 initSectionJump();
 initLivePanelRefresh();
 
