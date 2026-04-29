@@ -329,7 +329,10 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
 </style></head><body>
 
 <div class="header">
-  <h1 id="page-title" title="Toggle day/night theme">NC Wallet - CTC Forecast</h1>
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <h1 id="page-title" title="Toggle day/night theme">NC Wallet - CTC Forecast</h1>
+    <span class="wallet-chip" id="theme-modeBadge">Night mode</span>
+  </div>
   <p>diecsem - KA4RURVTDIM4YOGLSMXQ</p>
 </div>
 <nav class="section-jump" aria-label="Section shortcuts">
@@ -2175,12 +2178,19 @@ document.getElementById('in-duration').addEventListener('input',function(){
   document.getElementById('sl-duration').value=v;
   run();
 });
+function updateThemeModeBadge(){
+  var badge=document.getElementById('theme-modeBadge');
+  if(!badge) return;
+  badge.textContent=document.body.classList.contains('theme-light') ? 'Day mode' : 'Night mode';
+}
 document.getElementById('page-title').addEventListener('click',function(){
   document.body.classList.toggle('theme-light');
+  updateThemeModeBadge();
   run();
 });
 ['sl-btc','sl-btcdays'].forEach(function(id){document.getElementById(id).addEventListener('input',run);});
 updateSliderMax();
+updateThemeModeBadge();
 run();
 run();
 
