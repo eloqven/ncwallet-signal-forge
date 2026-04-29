@@ -198,6 +198,7 @@ th{background:var(--bg3);color:var(--text3);font-weight:500;font-size:10px;lette
 td{padding:7px 12px;border-bottom:1px solid var(--table-row-border);color:var(--text);font-family:'DM Mono',monospace;font-size:11px;}
 tr:last-child td{border-bottom:none;}
 tr:hover td{background:var(--row-hover);}
+.num-cell{text-align:right;font-variant-numeric:tabular-nums;}
 .td-green{color:var(--accent3);}
 .td-blue{color:var(--accent);}
 
@@ -4858,9 +4859,9 @@ function syncModelWalletInput(payload){
       var rowClass='wallet-row'+(selectedWalletSymbol && wallet.symbol===selectedWalletSymbol ? ' wallet-row-active' : '')+(isChanged ? ' wallet-row-changed' : '');
       return '<tr class=\"'+rowClass+'\" data-wallet-symbol=\"'+(wallet.symbol||'')+'\">'
         +'<td>'+wallet.assetName+(wallet.symbol?' ('+wallet.symbol+')':'')+'</td>'
-        +'<td>'+wallet.balanceText+'</td>'
-        +'<td>'+wallet.totalUsdText+'</td>'
-        +'<td class=\"'+changeClass+'\">'+(wallet.changeText||'--')+'</td>'
+        +'<td class=\"num-cell\">'+wallet.balanceText+'</td>'
+        +'<td class=\"num-cell\">'+wallet.totalUsdText+'</td>'
+        +'<td class=\"num-cell '+changeClass+'\">'+(wallet.changeText||'--')+'</td>'
       +'</tr>';
     }).join('');
   }
@@ -4899,10 +4900,10 @@ function syncModelWalletInput(payload){
       var rowClass=isNew ? ' class=\"wallet-row-new\"' : '';
       return '<tr>'
         .replace('<tr>','<tr'+rowClass+'>')
-        +'<td>'+(start+index+1)+'</td>'
+        +'<td class=\"num-cell\">'+(start+index+1)+'</td>'
         +'<td>'+formatWhen(entry.datetimeIso,entry.datetimeLabel)+'</td>'
         +'<td>'+entry.assetName+(entry.symbol?' ('+entry.symbol+')':'')+'</td>'
-        +'<td>'+(formatAmount(entry))+'</td>'
+        +'<td class=\"num-cell\">'+(formatAmount(entry))+'</td>'
         +'<td>'+(entry.status||'--')+(isNew?'<span class=\"wallet-tag\">New</span>':'')+'</td>'
       +'</tr>';
     }).join('');
@@ -4939,11 +4940,11 @@ function syncModelWalletInput(payload){
       }).join(' | ') : '';
       return '<tr>'
         +'<td>'+(item && item.syncedAt ? formatWhen(item.syncedAt,item.syncedAt) : '--')+'</td>'
-        +'<td>'+(item && Number.isFinite(Number(item.newHistoryRowCount)) ? String(item.newHistoryRowCount) : '--')+'</td>'
-        +'<td>'+((item && Number.isFinite(Number(item.walletTotalUsdDelta))) ? ((Number(item.walletTotalUsdDelta)>=0?'+':'')+Number(item.walletTotalUsdDelta).toFixed(4)+' USD') : '--')+'</td>'
-        +'<td>'+((item && Number.isFinite(Number(item.latestModelRateMicro))) ? Number(item.latestModelRateMicro).toFixed(2) : '--')+'</td>'
-        +'<td>'+((item && Number.isFinite(Number(item.latestActualRateMicro))) ? Number(item.latestActualRateMicro).toFixed(2) : '--')+'</td>'
-        +'<td>'+((item && Number.isFinite(Number(item.latestErrorPercent))) ? ((Number(item.latestErrorPercent)>=0?'+':'')+Number(item.latestErrorPercent).toFixed(2)+'%') : '--')+'</td>'
+        +'<td class=\"num-cell\">'+(item && Number.isFinite(Number(item.newHistoryRowCount)) ? String(item.newHistoryRowCount) : '--')+'</td>'
+        +'<td class=\"num-cell\">'+((item && Number.isFinite(Number(item.walletTotalUsdDelta))) ? ((Number(item.walletTotalUsdDelta)>=0?'+':'')+Number(item.walletTotalUsdDelta).toFixed(4)+' USD') : '--')+'</td>'
+        +'<td class=\"num-cell\">'+((item && Number.isFinite(Number(item.latestModelRateMicro))) ? Number(item.latestModelRateMicro).toFixed(2) : '--')+'</td>'
+        +'<td class=\"num-cell\">'+((item && Number.isFinite(Number(item.latestActualRateMicro))) ? Number(item.latestActualRateMicro).toFixed(2) : '--')+'</td>'
+        +'<td class=\"num-cell\">'+((item && Number.isFinite(Number(item.latestErrorPercent))) ? ((Number(item.latestErrorPercent)>=0?'+':'')+Number(item.latestErrorPercent).toFixed(2)+'%') : '--')+'</td>'
         +'<td>'+(holdings || '--')+'</td>'
       +'</tr>';
     }).join('');
