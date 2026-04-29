@@ -16,7 +16,7 @@ This repo is meant to be used as a practical local tool, not a polished public S
 
 ## Why use it
 
-This project exists because the useful work is not only “look at price” or “scrape one page”.
+This project exists because the useful work is not only "look at price" or "scrape one page".
 
 The actual workflow is closer to this:
 
@@ -119,6 +119,12 @@ The sync pulls what is currently visible, merges it into the local DB, and updat
 - mirrored opened coin page
 - model inputs and chart state
 
+Sanitized proof-of-concept screenshots below use the built-in demo mode at `?demo=1`. Wallet identity is hidden and balances are intentionally altered.
+
+![Sanitized NC Wallet mirror view](docs/screenshots/wallet-mirror-demo.png)
+
+![Sanitized dashboard overview](docs/screenshots/dashboard-overview-demo.png)
+
 ### Gatherer
 
 Use the gatherer page when you want broader coin-page coverage than a normal wallet sync gives you.
@@ -202,20 +208,20 @@ The split is simple:
 - `To-Do` = new capability or planned work
 - `Bugs` = broken, misleading, stale, or regressed behavior
 
-That separation helps keep “build this” different from “this already exists but is wrong”.
+That separation helps keep "build this" different from "this already exists but is wrong".
 
 ## Repo layout
 
 ```text
 .
-├─ index.html
-├─ server.js
-├─ data/
-├─ gatherer-sidecar/
-├─ todo-runner-sidecar/
-├─ ml-sidecar/
-├─ static-data/
-└─ ML_SERVER_PLAN.md
+|-- index.html
+|-- server.js
+|-- data/
+|-- gatherer-sidecar/
+|-- todo-runner-sidecar/
+|-- ml-sidecar/
+|-- static-data/
+`-- ML_SERVER_PLAN.md
 ```
 
 ## Notes

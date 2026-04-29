@@ -8,12 +8,17 @@ const DEVTOOLS_LIST_URL = "http://127.0.0.1:9222/json/list";
 const NCW_APP_PREFIX = "https://app.ncwallet.net/";
 const DB_DIR = path.join(ROOT, "data");
 const DB_FILE = path.join(DB_DIR, "surf-db.json");
+const EXPORT_DIR = path.join(ROOT, "exports");
 const DB_LIMITS = {
   signalViews: 400,
   walletSyncs: 200,
   walletPageViews: 2000,
   walletHistoryRows: 5000,
+  modelDeltaAudits: 2000,
 };
+const MODEL_K_HSH = 14.60e-6 / 90;
+const MODEL_K_CTC = 0.000228;
+const MODEL_K_TOTAL_USD = (0.1171e-6 * 1e8) / 72198;
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -53,6 +58,7 @@ function createEmptyDb() {
     walletSyncs: [],
     walletPageViews: [],
     walletHistoryRows: [],
+    modelDeltaAudits: [],
     todoItems: [],
     bugItems: [],
   };
@@ -84,6 +90,12 @@ function ensureDbFile() {
   }
 }
 
+function ensureExportDir() {
+  if (!fs.existsSync(EXPORT_DIR)) {
+    fs.mkdirSync(EXPORT_DIR, { recursive: true });
+  }
+}
+
 function readDb() {
   ensureDbFile();
   try {
@@ -95,6 +107,7 @@ function readDb() {
       walletSyncs: Array.isArray(parsed.walletSyncs) ? parsed.walletSyncs : [],
       walletPageViews: Array.isArray(parsed.walletPageViews) ? parsed.walletPageViews : [],
       walletHistoryRows: Array.isArray(parsed.walletHistoryRows) ? parsed.walletHistoryRows : [],
+      modelDeltaAudits: Array.isArray(parsed.modelDeltaAudits) ? parsed.modelDeltaAudits : [],
       todoItems: Array.isArray(parsed.todoItems) ? parsed.todoItems : [],
       bugItems: Array.isArray(parsed.bugItems) ? parsed.bugItems : [],
     };
@@ -122,12 +135,14 @@ function getDbSummary(db) {
   const latestWallet = db.walletSyncs.length ? db.walletSyncs[db.walletSyncs.length - 1] : null;
   const latestWalletPage = db.walletPageViews.length ? db.walletPageViews[db.walletPageViews.length - 1] : null;
   const latestWalletHistoryRow = db.walletHistoryRows.length ? db.walletHistoryRows[db.walletHistoryRows.length - 1] : null;
+  const latestModelDeltaAudit = Array.isArray(db.modelDeltaAudits) && db.modelDeltaAudits.length ? db.modelDeltaAudits[db.modelDeltaAudits.length - 1] : null;
   return {
     updatedAt: db.meta && db.meta.updatedAt ? db.meta.updatedAt : null,
     signalViewCount: db.signalViews.length,
     walletSyncCount: db.walletSyncs.length,
     walletPageViewCount: db.walletPageViews.length,
     walletHistoryRowCount: db.walletHistoryRows.length,
+    modelDeltaAuditCount: Array.isArray(db.modelDeltaAudits) ? db.modelDeltaAudits.length : 0,
     todoItemCount: Array.isArray(db.todoItems) ? db.todoItems.length : 0,
     bugItemCount: Array.isArray(db.bugItems) ? db.bugItems.length : 0,
     latestSignalView: latestSignal ? {
@@ -155,6 +170,14 @@ function getDbSummary(db) {
       datetimeLabel: latestWalletHistoryRow.datetimeLabel,
       amountText: latestWalletHistoryRow.amountText,
       symbol: latestWalletHistoryRow.symbol,
+    } : null,
+    latestModelDeltaAudit: latestModelDeltaAudit ? {
+      savedAt: latestModelDeltaAudit.savedAt,
+      newHistoryRowCount: latestModelDeltaAudit.newHistoryRowCount,
+      walletTotalUsdDelta: latestModelDeltaAudit.walletTotalUsdDelta,
+      latestModelRateMicro: latestModelDeltaAudit.latestModelRateMicro,
+      latestActualRateMicro: latestModelDeltaAudit.latestActualRateMicro,
+      latestErrorPercent: latestModelDeltaAudit.latestErrorPercent,
     } : null,
   };
 }
@@ -489,6 +512,7 @@ function appendWalletHistoryRows(db, payload) {
     db.walletHistoryRows.map((row, index) => [row.contentKey, index]),
   );
   let addedCount = 0;
+  const addedRows = [];
 
   entries.forEach((entry) => {
     const row = buildWalletHistoryRow(entry, payload.syncedAt);
@@ -506,11 +530,13 @@ function appendWalletHistoryRows(db, payload) {
     indexByKey.set(row.contentKey, db.walletHistoryRows.length);
     db.walletHistoryRows.push(row);
     addedCount += 1;
+    addedRows.push(row);
   });
 
   db.walletHistoryRows = trimDbList(db.walletHistoryRows, DB_LIMITS.walletHistoryRows);
   return {
     addedCount,
+    addedRows,
     rowCount: db.walletHistoryRows.length,
   };
 }
@@ -523,6 +549,114 @@ function getCachedWalletHistoryRows(db, limit = 240) {
     return bTime - aTime;
   });
   return rows.slice(0, limit);
+}
+
+function buildWalletSymbolMap(wallets) {
+  return new Map((Array.isArray(wallets) ? wallets : []).filter((wallet) => wallet && wallet.symbol).map((wallet) => [wallet.symbol, wallet]));
+}
+
+function buildWalletModelInputs(payload) {
+  const wallets = Array.isArray(payload && payload.wallets) ? payload.wallets : [];
+  const walletMap = buildWalletSymbolMap(wallets);
+  const ctcWallet = walletMap.get("CTC") || null;
+  const hshWallet = walletMap.get("HSH") || null;
+  const btcWallet = walletMap.get("BTC") || null;
+  const walletTotalUsd = Number.isFinite(Number(payload && payload.walletTotalUsd)) ? Number(payload.walletTotalUsd) : 0;
+  const ctcUsd = ctcWallet && Number.isFinite(ctcWallet.totalUsd) ? ctcWallet.totalUsd : 0;
+  const hshUsd = hshWallet && Number.isFinite(hshWallet.totalUsd) ? hshWallet.totalUsd : 0;
+  const walletBaseUsd = Math.max(0, walletTotalUsd - ctcUsd - hshUsd);
+  const ctcHolding = ctcWallet && Number.isFinite(ctcWallet.holdingAmount) ? ctcWallet.holdingAmount : 0;
+  const hshHolding = hshWallet && Number.isFinite(hshWallet.holdingAmount) ? hshWallet.holdingAmount : 0;
+  const latestModelRateMicro = roundNumber(((MODEL_K_HSH * hshHolding) + (MODEL_K_CTC * ctcHolding) + (MODEL_K_TOTAL_USD * walletBaseUsd)) * 1e6, 6);
+  return {
+    walletBaseUsd: roundNumber(walletBaseUsd, 8),
+    walletTotalUsd: roundNumber(walletTotalUsd, 8),
+    ctcHolding: roundNumber(ctcHolding, 12),
+    hshHolding: roundNumber(hshHolding, 8),
+    btcPriceUsd: btcWallet && Number.isFinite(btcWallet.priceUsd) ? roundNumber(btcWallet.priceUsd, 8) : null,
+    ctcPriceUsd: ctcWallet && Number.isFinite(ctcWallet.priceUsd) ? roundNumber(ctcWallet.priceUsd, 8) : null,
+    latestModelRateMicro,
+  };
+}
+
+function buildLatestActualMetrics(entries) {
+  const dated = (Array.isArray(entries) ? entries : []).filter((entry) => entry && entry.datetimeIso);
+  if (!dated.length) {
+    return {
+      latestHistoryDay: null,
+      latestActualRateMicro: null,
+      latestBtcMinedSat: null,
+    };
+  }
+  const latestHistoryDay = dated.reduce((best, entry) => {
+    const day = String(entry.datetimeIso).slice(0, 10);
+    return day > best ? day : best;
+  }, "0000-00-00");
+  const latestDayEntries = dated.filter((entry) => String(entry.datetimeIso).slice(0, 10) === latestHistoryDay);
+  const latestActualRateMicro = roundNumber(latestDayEntries.filter((entry) => entry.symbol === "CTC").reduce((sum, entry) => sum + (Number(entry.amountValue) || 0), 0) * 1e6, 6);
+  const latestBtcMinedSat = roundNumber(latestDayEntries.filter((entry) => entry.symbol === "BTC").reduce((sum, entry) => sum + (Number(entry.amountValue) || 0), 0) * 1e8, 2);
+  return {
+    latestHistoryDay,
+    latestActualRateMicro: latestActualRateMicro || null,
+    latestBtcMinedSat: latestBtcMinedSat || null,
+  };
+}
+
+function buildWalletDeltaAudit(previousSnapshot, payload, historyStore, cachedEntries) {
+  const currentInputs = buildWalletModelInputs(payload);
+  const previousInputs = buildWalletModelInputs(previousSnapshot || {});
+  const latestActual = buildLatestActualMetrics(cachedEntries);
+  const previousWalletMap = buildWalletSymbolMap(previousSnapshot && previousSnapshot.wallets);
+  const currentWalletMap = buildWalletSymbolMap(payload && payload.wallets);
+  const touchedSymbols = Array.from(new Set([
+    ...Array.from(previousWalletMap.keys()),
+    ...Array.from(currentWalletMap.keys()),
+    ...((historyStore && Array.isArray(historyStore.addedRows)) ? historyStore.addedRows.map((row) => row.symbol).filter(Boolean) : []),
+  ])).sort();
+  const holdingsDeltaBySymbol = {};
+
+  touchedSymbols.forEach((symbol) => {
+    const previousHolding = previousWalletMap.get(symbol) && Number.isFinite(previousWalletMap.get(symbol).holdingAmount) ? previousWalletMap.get(symbol).holdingAmount : 0;
+    const currentHolding = currentWalletMap.get(symbol) && Number.isFinite(currentWalletMap.get(symbol).holdingAmount) ? currentWalletMap.get(symbol).holdingAmount : 0;
+    const delta = roundNumber(currentHolding - previousHolding, 12);
+    if (delta) holdingsDeltaBySymbol[symbol] = delta;
+  });
+
+  const latestErrorPercent = latestActual.latestActualRateMicro && currentInputs.latestModelRateMicro
+    ? roundNumber(((currentInputs.latestModelRateMicro - latestActual.latestActualRateMicro) / latestActual.latestActualRateMicro) * 100, 6)
+    : null;
+
+  return {
+    id: `model-audit-${payload.syncedAt || Date.now()}`,
+    savedAt: new Date().toISOString(),
+    syncedAt: payload.syncedAt || null,
+    newHistoryRowCount: historyStore && Number.isFinite(historyStore.addedCount) ? historyStore.addedCount : 0,
+    newHistoryRows: (historyStore && Array.isArray(historyStore.addedRows) ? historyStore.addedRows : []).slice(-12).map((row) => ({
+      symbol: row.symbol || null,
+      amountText: row.amountText || null,
+      datetimeIso: row.datetimeIso || null,
+    })),
+    walletTotalUsd: currentInputs.walletTotalUsd,
+    walletTotalUsdDelta: roundNumber(currentInputs.walletTotalUsd - previousInputs.walletTotalUsd, 8),
+    walletBaseUsd: currentInputs.walletBaseUsd,
+    walletBaseUsdDelta: roundNumber(currentInputs.walletBaseUsd - previousInputs.walletBaseUsd, 8),
+    holdingsDeltaBySymbol,
+    latestHistoryDay: latestActual.latestHistoryDay,
+    latestModelRateMicro: currentInputs.latestModelRateMicro,
+    latestActualRateMicro: latestActual.latestActualRateMicro,
+    latestErrorPercent,
+    latestBtcMinedSat: latestActual.latestBtcMinedSat,
+    btcPriceUsd: currentInputs.btcPriceUsd,
+    ctcPriceUsd: currentInputs.ctcPriceUsd,
+  };
+}
+
+function appendWalletDeltaAudit(db, previousSnapshot, payload, historyStore, cachedEntries) {
+  const audit = buildWalletDeltaAudit(previousSnapshot, payload, historyStore, cachedEntries);
+  db.modelDeltaAudits = Array.isArray(db.modelDeltaAudits) ? db.modelDeltaAudits : [];
+  db.modelDeltaAudits.push(audit);
+  db.modelDeltaAudits = trimDbList(db.modelDeltaAudits, DB_LIMITS.modelDeltaAudits);
+  return audit;
 }
 
 function buildWalletPageSnapshot(payload) {
@@ -593,6 +727,7 @@ function appendWalletPageSnapshot(db, payload) {
 
 function persistWalletSyncSnapshot(payload) {
   const db = readDb();
+  const previousSnapshot = Array.isArray(db.walletSyncs) && db.walletSyncs.length ? db.walletSyncs[db.walletSyncs.length - 1] : null;
   const walletDisplayState = resolveWalletDisplayState(db, payload);
   payload.wallets = walletDisplayState.wallets;
   payload.walletTotalUsd = walletDisplayState.walletTotalUsd;
@@ -629,6 +764,7 @@ function persistWalletSyncSnapshot(payload) {
   const historyStore = appendWalletHistoryRows(db, payload);
   const cachedEntries = getCachedWalletHistoryRows(db);
   const cachedSummary = summarizeNcwalletEntries(cachedEntries);
+  const latestModelDeltaAudit = appendWalletDeltaAudit(db, previousSnapshot, payload, historyStore, cachedEntries);
   writeDb(db);
   return {
     summary: getDbSummary(db),
@@ -637,6 +773,7 @@ function persistWalletSyncSnapshot(payload) {
     cachedStatusCounts: cachedSummary.statusCounts,
     cachedHistoryCount: db.walletHistoryRows.length,
     cachedHistoryAdded: historyStore.addedCount,
+    latestModelDeltaAudit,
   };
 }
 
@@ -1040,6 +1177,8 @@ async function getNcwalletDashboardPayload() {
     throw new Error("NC Wallet page returned no wallet data.");
   }
 
+  const health = detectNcwalletPageHealth(evaluated);
+
   const entries = Array.isArray(evaluated.historyEntries)
     ? evaluated.historyEntries.map(normalizeNcwalletEntry).filter((entry) => entry.assetName && entry.amountText)
     : [];
@@ -1065,6 +1204,7 @@ async function getNcwalletDashboardPayload() {
     source: "ncwallet-live-tab",
     syncedAt: new Date().toISOString(),
     authenticated: Boolean(evaluated.authenticated),
+    health,
     title: evaluated.title || "NC Wallet",
     url: evaluated.url || NCW_APP_PREFIX,
     visibleCount: entries.length,
@@ -1081,6 +1221,46 @@ async function getNcwalletDashboardPayload() {
       amountText: lastInfoLines[1] || null,
     },
     ...summary,
+  };
+}
+
+function detectNcwalletPageHealth(raw) {
+  const title = String(raw && raw.title ? raw.title : "NC Wallet");
+  const pageLines = Array.isArray(raw && raw.pageLines) ? raw.pageLines.map((line) => String(line || "").trim()).filter(Boolean) : [];
+  const haystack = [title, String(raw && raw.bodyPreview ? raw.bodyPreview : ""), ...pageLines].join("\n").toLowerCase();
+
+  if (haystack.includes("requested data incorrect or expired")) {
+    return {
+      state: "expired",
+      stale: true,
+      message: "NC Wallet says the opened page data is incorrect or expired.",
+      recovery: "Reopen Wallets, History, or a specific coin page in the logged-in NC Wallet tab, then sync again.",
+    };
+  }
+
+  if (haystack.includes("something went wrong")) {
+    return {
+      state: "broken",
+      stale: true,
+      message: "NC Wallet is showing an error page instead of live wallet data.",
+      recovery: "Refresh the NC Wallet tab until real wallet content is visible, then sync again.",
+    };
+  }
+
+  if (haystack.includes("sign in") || haystack.includes("welcome to nc wallet")) {
+    return {
+      state: "signin",
+      stale: true,
+      message: "NC Wallet is on a welcome or sign-in screen.",
+      recovery: "Log back in and reopen Wallets, History, or a coin page before syncing.",
+    };
+  }
+
+  return {
+    state: "ok",
+    stale: false,
+    message: "",
+    recovery: "",
   };
 }
 
@@ -1112,6 +1292,14 @@ async function handleBinanceProxy(res, url) {
 async function handleNcwalletHistory(res) {
   try {
     const payload = await getNcwalletDashboardPayload();
+    if (payload.health && payload.health.stale) {
+      sendJson(res, 409, {
+        error: payload.health.message,
+        detail: payload.health.recovery,
+        payload,
+      });
+      return;
+    }
     if (!payload.authenticated || (!payload.visibleCount && !payload.wallets.length && !payload.activeWalletDetail)) {
       sendJson(res, 409, {
         error: "NC Wallet data is not visible in the authenticated browser tab.",
@@ -1127,6 +1315,7 @@ async function handleNcwalletHistory(res) {
     payload.cachedStatusCounts = persisted.cachedStatusCounts;
     payload.cachedHistoryCount = persisted.cachedHistoryCount;
     payload.cachedHistoryAdded = persisted.cachedHistoryAdded;
+    payload.latestModelDeltaAudit = persisted.latestModelDeltaAudit;
     sendJson(res, 200, payload);
   } catch (error) {
     sendJson(res, 502, {
@@ -1141,6 +1330,14 @@ async function handleNcwalletRange(req, res) {
     const payload = await readJsonBody(req);
     await clickNcwalletRange(payload && payload.label);
     const synced = await getNcwalletDashboardPayload();
+    if (synced.health && synced.health.stale) {
+      sendJson(res, 409, {
+        error: synced.health.message,
+        detail: synced.health.recovery,
+        payload: synced,
+      });
+      return;
+    }
     const persisted = persistWalletSyncSnapshot(synced);
     synced.dbSummary = persisted.summary;
     synced.cachedEntries = persisted.cachedEntries;
@@ -1148,6 +1345,7 @@ async function handleNcwalletRange(req, res) {
     synced.cachedStatusCounts = persisted.cachedStatusCounts;
     synced.cachedHistoryCount = persisted.cachedHistoryCount;
     synced.cachedHistoryAdded = persisted.cachedHistoryAdded;
+    synced.latestModelDeltaAudit = persisted.latestModelDeltaAudit;
     sendJson(res, 200, synced);
   } catch (error) {
     sendJson(res, 502, {
@@ -1168,6 +1366,35 @@ function handleDbSummary(res) {
   } catch (error) {
     sendJson(res, 500, {
       error: "Failed to read local DB summary",
+      detail: formatError(error),
+    });
+  }
+}
+
+function handleDbExport(res) {
+  try {
+    ensureExportDir();
+    const db = readDb();
+    const exportedAt = new Date().toISOString();
+    const stamp = exportedAt.replace(/[:.]/g, "-");
+    const filename = `ncwallet-snapshot-${stamp}.json`;
+    const filePath = path.join(EXPORT_DIR, filename);
+    const payload = {
+      exportedAt,
+      dbSummary: getDbSummary(db),
+      data: db,
+    };
+    fs.writeFileSync(filePath, JSON.stringify(payload, null, 2));
+    sendJson(res, 200, {
+      ok: true,
+      exportedAt,
+      filename,
+      filePath,
+      summary: payload.dbSummary,
+    });
+  } catch (error) {
+    sendJson(res, 500, {
+      error: "Failed to export DB snapshot",
       detail: formatError(error),
     });
   }
@@ -1283,6 +1510,11 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === "/api/local-db/summary" && req.method === "GET") {
     handleDbSummary(res);
+    return;
+  }
+
+  if (url.pathname === "/api/local-db/export" && req.method === "POST") {
+    handleDbExport(res);
     return;
   }
 

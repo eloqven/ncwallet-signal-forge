@@ -94,6 +94,8 @@ input[type=number]:focus{border-color:var(--accent);}
 .wallet-history-status{margin:0;font-size:12px;color:var(--text2);}
 .wallet-history-pager{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .wallet-history-page{font:600 11px 'DM Mono',monospace;color:var(--text2);}
+.wallet-demoNote{margin:8px 0 0;font-size:11px;color:var(--text2);}
+.wallet-demoNote strong{color:var(--accent2);}
 .wallet-history-nav{padding:7px 10px;border:1px solid var(--control-border);border-radius:var(--radius-sm);background:var(--bg3);color:var(--text);font:600 11px 'DM Sans',sans-serif;cursor:pointer;}
 .wallet-history-nav:disabled{opacity:.45;cursor:not-allowed;}
 .wallet-empty{padding:16px;color:var(--text2);font-size:12px;}
@@ -259,6 +261,10 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
 .todo-toggle input{accent-color:var(--accent);}
 .todo-links{display:flex;flex-wrap:wrap;gap:8px;}
 .todo-linkButton{text-decoration:none;display:inline-flex;align-items:center;justify-content:center;}
+.todo-create{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;}
+.todo-create-input{min-height:34px;padding:8px 10px;border:1px solid var(--control-border);border-radius:8px;background:var(--bg3);color:var(--text);font:500 12px 'DM Sans',sans-serif;}
+.todo-create-task{flex:1 1 220px;}
+.todo-create-scope{flex:2 1 320px;}
 .todo-statusCol,.todo-priorityCol{width:1%;}
 .todo-status,.todo-priority{font-size:30px;line-height:1;text-align:center;}
 .todo-priority-select{width:46px;min-width:46px;padding:4px 2px;font-size:30px;line-height:1;text-align:center;text-align-last:center;}
@@ -412,11 +418,12 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
   </div>
 </div>
 
-<div class="chart-panel" style="margin-bottom:1.25rem;">
+<div class="chart-panel" id="wallet-liveSyncPanel" style="margin-bottom:1.25rem;">
   <div class="wallet-head">
     <div>
       <div class="chart-title">NC Wallet Live Sync</div>
       <p class="ratio-lead" id="wallet-syncSummary">Reading wallet state and recent history from the authenticated NC Wallet browser tab.</p>
+      <p class="wallet-demoNote" id="wallet-demoNote" hidden><strong>Public demo mode:</strong> wallet identity is hidden and balances are intentionally altered for safe screenshots.</p>
     </div>
     <button class="wallet-action" id="wallet-syncButton" type="button">Sync wallet</button>
   </div>
@@ -759,8 +766,19 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
         <a class="wallet-history-nav todo-linkButton" href="/static-data/index.html" target="_blank" rel="noreferrer">Open gathered data</a>
         <a class="wallet-history-nav todo-linkButton" href="http://127.0.0.1:4280" target="_blank" rel="noreferrer">Open ML Lab</a>
         <a class="wallet-history-nav todo-linkButton" href="http://127.0.0.1:4290" target="_blank" rel="noreferrer">Open gatherer</a>
+        <button class="wallet-history-nav" id="todo-exportSnapshot" type="button">Export snapshot</button>
         <button class="wallet-history-nav" id="todo-refreshButton" type="button">Refresh to-do list</button>
       </div>
+    </div>
+    <div class="todo-create">
+      <input class="todo-create-input todo-create-task" id="todo-createTask" type="text" maxlength="120" placeholder="Future task title">
+      <input class="todo-create-input todo-create-scope" id="todo-createScope" type="text" maxlength="240" placeholder="Short scope for the devs">
+      <select class="select-ui" id="todo-createPriority" aria-label="Future task priority">
+        <option value="3">🟡</option>
+        <option value="2">🟠</option>
+        <option value="1">🔴</option>
+      </select>
+      <button class="wallet-history-nav" id="todo-createButton" type="button">Add future task</button>
     </div>
     <div class="tbl-wrap">
       <table>
@@ -814,6 +832,7 @@ var BTC_7AVG=BTC_DAYS_L.map(function(_,i){if(i<6)return null;var s=0;for(var j=i
 var STATIC_MODEL_HISTORY={histLabels:HIST_L,actual:ACTUAL,modelled:MODELLED,errLabels:ERR_L,errValues:ERR_V,btcLabels:BTC_DAYS_L,btcValues:BTC_DAYS_V,btcAvg:BTC_7AVG};
 var modelHistoryOverride=null;
 var modelWalletPriceCache={BTC:78215,CTC:1,HSH:HSH_USD_FIXED/100};
+var modelWalletHoldingsCache={CTC:0.01998823,HSH:100};
 var appToastTimer=null;
 var appServerUnavailable=false;
 var todoStorageKey='ncwallet-project-todo-v1';
@@ -850,18 +869,18 @@ var defaultTodoItems=[
   {id:'server-restart-toast',status:'done',priority:3,task:'Server restart toast',scope:'Mild 5 second warning appears when local backend requests drop during a restart.'},
   {id:'project-repo-name',status:'done',priority:3,task:'Project repo name',scope:'Chosen repo name: ncwallet-signal-forge.'},
   {id:'backlog-hygiene-pass',status:'done',priority:3,task:'Backlog hygiene pass',scope:'Do one final consistency pass on the shared to-do and bug lists so footer defaults, DB state, and task statuses stay aligned.'},
-  {id:'user-created-future-todos-ui',status:'open',priority:3,task:'User-created future to-do UI',scope:'Add a small in-app UI so the user can create future open to-do items for the devs while the app is running.'},
+  {id:'user-created-future-todos-ui',status:'done',priority:3,task:'User-created future to-do UI',scope:'Add a small in-app UI so the user can create future open to-do items for the devs while the app is running.'},
   {id:'same-day-model-refresh',status:'done',priority:1,task:'Same-day model refresh for new wallet flows',scope:'Use same-day synced wallet transactions, including newly added HSH, in the latest daily model point and avoid forcing missing CTC/BTC days to zero in the charts.'},
-  {id:'sync-health-guard',status:'open',priority:1,task:'NC Wallet sync health guard',scope:'Detect expired, welcome, or broken NC Wallet states during mirror and gatherer flows, mark stale data clearly, and surface recovery guidance before misleading sync data is saved.'},
-  {id:'model-delta-audit',status:'open',priority:2,task:'Model delta audit trail',scope:'After wallet sync, record which new transactions changed model inputs, wallet USD totals, forecast error stats, and other derived values so daily processing is traceable.'},
-  {id:'dataset-export-snapshot',status:'open',priority:3,task:'Dataset export snapshot',scope:'Add a one-click export of gathered wallet snapshots, page views, forecasts, history rows, bugs, and to-do metadata into a timestamped JSON file.'}
+  {id:'sync-health-guard',status:'done',priority:1,task:'NC Wallet sync health guard',scope:'Detect expired, welcome, or broken NC Wallet states during mirror and gatherer flows, mark stale data clearly, and surface recovery guidance before misleading sync data is saved.'},
+  {id:'model-delta-audit',status:'done',priority:2,task:'Model delta audit trail',scope:'After wallet sync, record which new transactions changed model inputs, wallet USD totals, forecast error stats, and other derived values so daily processing is traceable.'},
+  {id:'dataset-export-snapshot',status:'done',priority:3,task:'Dataset export snapshot',scope:'Add a one-click export of gathered wallet snapshots, page views, forecasts, history rows, bugs, and to-do metadata into a timestamped JSON file.'}
 ];
 var defaultBugItems=[
   {id:'gatherer-refresh-idle',status:'open',reportedAt:'2026-04-29',bug:'NC Wallet gatherer can appear to refresh and go idle',context:'Complaint after the watched-target work: gatherer run looked like a refresh and then idle instead of clearly continuing or surfacing the blocker.'},
   {id:'todo-agent-queued-shows-waiting',status:'done',reportedAt:'2026-04-29',bug:'Queued agent button can show Waiting instead of Queued',context:'Complaint after queueing a to-do item: the Agent column label drifted from the clicked queued state and looked misleading.'},
   {id:'agent-queue-nonautomated',status:'done',reportedAt:'2026-04-29',bug:'Non-automated tasks looked queueable',context:'Complaint during queue testing: manual tasks could look queued even though no real automation handler existed.'},
   {id:'bug-table-not-working',status:'open',reportedAt:'2026-04-29',bug:'Bug table not working',context:'Needs testing after queue implementation/testing.'},
-  {id:'model-history-missing-same-day-flows',status:'open',reportedAt:'2026-04-29',bug:'Model history was forcing missing days to zero and ignored same-day HSH in the latest model point',context:'Complaint after wallet sync with a new HSH credit: the chart looked broken/missing and the new same-day HSH flow did not trigger a fresh daily model value.'}
+  {id:'model-history-missing-same-day-flows',status:'done',reportedAt:'2026-04-29',bug:'Model history was forcing missing days to zero and ignored same-day HSH in the latest model point',context:'Complaint after wallet sync with a new HSH credit: the chart looked broken/missing and the new same-day HSH flow did not trigger a fresh daily model value.'}
 ];
 
 var UNIT_MAXES={days:365,weeks:52,months:36,years:3};
@@ -937,6 +956,11 @@ function mergeTodoItems(baseItems,storedItems){
     return Object.assign({},item);
   });
   return mergedBase.concat(extraItems);
+}
+
+function slugifyTodoId(value){
+  var slug=String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,48);
+  return slug || ('future-task-'+Date.now());
 }
 
 function loadTodoItemsFromLocalCache(){
@@ -1199,6 +1223,66 @@ if(todoRefreshButton){
     loadBugItemsFromDb();
   });
 }
+var todoCreateButton=document.getElementById('todo-createButton');
+var todoCreateTask=document.getElementById('todo-createTask');
+var todoCreateScope=document.getElementById('todo-createScope');
+var todoCreatePriority=document.getElementById('todo-createPriority');
+if(todoCreateButton && todoCreateTask && todoCreateScope && todoCreatePriority){
+  todoCreateButton.addEventListener('click',async function(){
+    var task=todoCreateTask.value.trim();
+    var scope=todoCreateScope.value.trim();
+    if(!task){
+      showAppToast('Missing task','Write a future task title first.',4000);
+      todoCreateTask.focus();
+      return;
+    }
+    var items=loadTodoItems().slice();
+    var baseId=slugifyTodoId(task);
+    var nextId=baseId;
+    while(items.some(function(item){ return item && item.id===nextId; })){
+      nextId=baseId+'-'+Date.now();
+    }
+    items.push({
+      id:nextId,
+      status:'open',
+      priority:Number(todoCreatePriority.value)||3,
+      task:task,
+      scope:scope || 'User-added future task from the running app.',
+      handlerId:'manual-review',
+      agentRequest:null,
+      createdBy:'user-footer'
+    });
+    saveTodoItems(items);
+    renderTodoTable();
+    todoCreateTask.value='';
+    todoCreateScope.value='';
+    todoCreatePriority.value='3';
+    await saveTodoItemsToDb(items);
+    loadTodoItemsFromDb();
+    showAppToast('Future task added',task,4000);
+  });
+}
+var todoExportSnapshotButton=document.getElementById('todo-exportSnapshot');
+if(todoExportSnapshotButton){
+  todoExportSnapshotButton.addEventListener('click',async function(){
+    todoExportSnapshotButton.disabled=true;
+    try{
+      var response=await fetchWithServerToast('/api/local-db/export',{
+        method:'POST',
+        headers:{accept:'application/json'}
+      });
+      var payload=await response.json();
+      if(!response.ok){
+        throw new Error(payload.detail || payload.error || 'Export failed.');
+      }
+      showAppToast('Snapshot exported',payload.filename || 'DB snapshot saved.',5000);
+    } catch(error){
+      showAppToast('Export failed',error.message,5000);
+    } finally {
+      todoExportSnapshotButton.disabled=false;
+    }
+  });
+}
 
 var bugsShowToggle=document.getElementById('bugs-showToggle');
 if(bugsShowToggle){
@@ -1235,19 +1319,17 @@ function modelMean(values){
 }
 
 function modelDayLabel(value){
-  return new Date(value).toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+  return new Date(value).toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:'UTC'});
 }
 
 function modelDayKey(value){
   var date=new Date(value);
   if(!Number.isFinite(date.getTime())) return '';
-  date.setHours(0,0,0,0);
   return date.toISOString().slice(0,10);
 }
 
 function modelDayFromKey(key){
-  var parts=String(key).split('-');
-  return new Date(Number(parts[0]),Number(parts[1])-1,Number(parts[2]));
+  return new Date(String(key)+'T00:00:00.000Z');
 }
 
 function updateModelPriceCache(payload){
@@ -1288,7 +1370,21 @@ function computeModelWalletUsd(payload){
   return modelWalletUsd>=0 ? modelWalletUsd : total;
 }
 
-function buildModelHistoryFromEntries(entries){
+function buildModelHoldingsSnapshot(payload){
+  var holdings={};
+  var wallets=payload && Array.isArray(payload.wallets) ? payload.wallets : [];
+  wallets.forEach(function(wallet){
+    if(!wallet || !wallet.symbol || !Number.isFinite(wallet.holdingAmount)) return;
+    holdings[wallet.symbol]=wallet.holdingAmount;
+  });
+  var activeDetail=payload && payload.activeWalletDetail ? payload.activeWalletDetail : null;
+  if(activeDetail && activeDetail.symbol && Number.isFinite(activeDetail.holdingAmount) && !Number.isFinite(holdings[activeDetail.symbol])){
+    holdings[activeDetail.symbol]=activeDetail.holdingAmount;
+  }
+  return holdings;
+}
+
+function buildModelHistoryFromEntries(entries,payload){
   var dated=(Array.isArray(entries)?entries:[]).filter(function(entry){
     return entry && entry.symbol && Number.isFinite(Number(entry.amountValue)) && entry.datetimeIso;
   }).map(function(entry){
@@ -1321,7 +1417,7 @@ function buildModelHistoryFromEntries(entries){
       hasBtc:false,
       flows:{}
     });
-    cursor.setDate(cursor.getDate()+1);
+    cursor.setUTCDate(cursor.getUTCDate()+1);
   }
 
   dated.forEach(function(entry){
@@ -1339,12 +1435,17 @@ function buildModelHistoryFromEntries(entries){
     }
   });
 
-  var holdings={};
-  var labels=[], actual=[], modelled=[], btcValues=[];
-  Array.from(buckets.values()).sort(function(a,b){ return a.date.getTime()-b.date.getTime(); }).forEach(function(bucket){
-    Object.keys(bucket.flows).forEach(function(symbol){
-      holdings[symbol]=(holdings[symbol]||0)+bucket.flows[symbol];
+  var anchorHoldings=buildModelHoldingsSnapshot(payload);
+  if(!Object.keys(anchorHoldings).length){
+    dated.forEach(function(entry){
+      anchorHoldings[entry.symbol]=(anchorHoldings[entry.symbol]||0)+entry.amountValue;
     });
+  }
+
+  var orderedBuckets=Array.from(buckets.values()).sort(function(a,b){ return a.date.getTime()-b.date.getTime(); });
+  var reverseRows=[];
+  var holdings=Object.assign({},anchorHoldings);
+  orderedBuckets.slice().reverse().forEach(function(bucket){
     var baseUsd=0;
     Object.keys(holdings).forEach(function(symbol){
       if(symbol==='CTC' || symbol==='HSH') return;
@@ -1352,10 +1453,29 @@ function buildModelHistoryFromEntries(entries){
       if(Number.isFinite(price)) baseUsd+=holdings[symbol]*price;
     });
     var dayModel=((K_HSH*(holdings.HSH||0))+(K_CTC*(holdings.CTC||0))+(K_TOTAL_USD*baseUsd))*1e6;
-    labels.push(bucket.label);
-    actual.push(bucket.hasActual ? parseFloat(bucket.actual.toFixed(2)) : null);
-    modelled.push(parseFloat(dayModel.toFixed(2)));
-    btcValues.push(bucket.hasBtc ? Math.round(bucket.btc) : null);
+    reverseRows.push({
+      key:bucket.key,
+      label:bucket.label,
+      actual:bucket.hasActual ? parseFloat(bucket.actual.toFixed(2)) : null,
+      modelled:parseFloat(dayModel.toFixed(2)),
+      btc:bucket.hasBtc ? Math.round(bucket.btc) : null
+    });
+    Object.keys(bucket.flows).forEach(function(symbol){
+      holdings[symbol]=(holdings[symbol]||0)-bucket.flows[symbol];
+      if(Math.abs(holdings[symbol])<1e-12 || holdings[symbol]<0){
+        holdings[symbol]=0;
+      }
+    });
+  });
+  reverseRows.reverse();
+
+  var labels=[], dateKeys=[], actual=[], modelled=[], btcValues=[];
+  reverseRows.forEach(function(row){
+    labels.push(row.label);
+    dateKeys.push(row.key);
+    actual.push(row.actual);
+    modelled.push(row.modelled);
+    btcValues.push(row.btc);
   });
 
   var btcAvg=btcValues.map(function(_,index){
@@ -1376,6 +1496,7 @@ function buildModelHistoryFromEntries(entries){
   var trimmedErr=errPairs.slice(-16);
   return {
     histLabels:labels,
+    histDateKeys:dateKeys,
     actual:actual,
     modelled:modelled,
     errLabels:trimmedErr.map(function(item){ return item.label; }),
@@ -1389,6 +1510,7 @@ function buildModelHistoryFromEntries(entries){
 function syncModelFromWalletPayload(payload){
   if(!payload) return;
   updateModelPriceCache(payload);
+  modelWalletHoldingsCache=Object.assign({},modelWalletHoldingsCache,buildModelHoldingsSnapshot(payload));
 
   var modelWalletUsd=computeModelWalletUsd(payload);
   if(Number.isFinite(modelWalletUsd)){
@@ -1408,7 +1530,7 @@ function syncModelFromWalletPayload(payload){
     document.getElementById('sl-price').value=Math.min(ctcPrice,10);
   }
 
-  var historyOverride=buildModelHistoryFromEntries((payload.cachedEntries && payload.cachedEntries.length) ? payload.cachedEntries : payload.entries);
+  var historyOverride=buildModelHistoryFromEntries((payload.cachedEntries && payload.cachedEntries.length) ? payload.cachedEntries : payload.entries,payload);
   if(historyOverride){
     modelHistoryOverride=historyOverride;
     var btcSlider=document.getElementById('sl-btc');
@@ -1443,15 +1565,32 @@ function run(){
   document.getElementById('sl-btcprice').value=Math.min(btcPrice,260000);
   document.getElementById('sl-duration').value=Math.min(durVal,UNIT_MAXES[unit]);
 
-  var ctcBal=0.01998823, btcBal=10927.0, walletBaseUsd=Math.max(0,walletUSD);
+  var historyData=modelHistoryOverride || STATIC_MODEL_HISTORY;
+  var histLabels=Array.isArray(historyData.histLabels) && historyData.histLabels.length ? historyData.histLabels : STATIC_MODEL_HISTORY.histLabels;
+  var histDateKeys=Array.isArray(historyData.histDateKeys) ? historyData.histDateKeys : [];
+  var histActual=Array.isArray(historyData.actual) && historyData.actual.length ? historyData.actual : STATIC_MODEL_HISTORY.actual;
+  var histModelled=Array.isArray(historyData.modelled) && historyData.modelled.length ? historyData.modelled : STATIC_MODEL_HISTORY.modelled;
+  var errLabels=Array.isArray(historyData.errLabels) && historyData.errLabels.length ? historyData.errLabels : STATIC_MODEL_HISTORY.errLabels;
+  var errValues=Array.isArray(historyData.errValues) && historyData.errValues.length ? historyData.errValues : STATIC_MODEL_HISTORY.errValues;
+  var btcLabels=Array.isArray(historyData.btcLabels) && historyData.btcLabels.length ? historyData.btcLabels : STATIC_MODEL_HISTORY.btcLabels;
+  var btcValues=Array.isArray(historyData.btcValues) && historyData.btcValues.length ? historyData.btcValues : STATIC_MODEL_HISTORY.btcValues;
+  var btcAvgSeries=Array.isArray(historyData.btcAvg) && historyData.btcAvg.length ? historyData.btcAvg : STATIC_MODEL_HISTORY.btcAvg;
+
+  var latestHistKey=histDateKeys.length ? histDateKeys[histDateKeys.length-1] : '';
+  var start=latestHistKey ? modelDayFromKey(latestHistKey) : new Date();
+  if(!Number.isFinite(start.getTime())) start=new Date();
+  start.setUTCDate(start.getUTCDate()+1);
+
+  var currentCtcBalance=Number.isFinite(modelWalletHoldingsCache.CTC) ? modelWalletHoldingsCache.CTC : 0.01998823;
+  var currentHshBalance=Number.isFinite(modelWalletHoldingsCache.HSH) ? modelWalletHoldingsCache.HSH : 100;
+  var ctcBal=Math.max(currentCtcBalance,0), btcBal=10927.0, walletBaseUsd=Math.max(0,walletUSD);
   var totalDays=Math.max(1, durVal*UNIT_TO_DAYS[unit]);
-  var start=new Date('2026-04-28');
   var fcLabels=[], fcDateLabels=[], fcRates=[], fcWalletVals=[], fcCtcVals=[], fcTotalVals=[];
   var tblRows=[], cumul=ctcBal, btcPeak=btcBal;
 
   for(var i=0;i<totalDays;i++){
-    var d=new Date(start); d.setDate(d.getDate()+i);
-    var rate=K_HSH*100+K_CTC*ctcBal+K_TOTAL_USD*walletBaseUsd;
+    var d=new Date(start); d.setUTCDate(d.getUTCDate()+i);
+    var rate=K_HSH*currentHshBalance+K_CTC*ctcBal+K_TOTAL_USD*walletBaseUsd;
     ctcBal+=rate; cumul+=rate;
     if(i<btcDays){
       btcBal+=btcPerDay;
@@ -1460,9 +1599,9 @@ function run(){
     if(i===btcDays-1) btcPeak=btcBal;
 
     // Chart label (short, for x-axis ticks)
-    fcLabels.push(d.toLocaleDateString('en-GB',{day:'numeric',month:'short'}));
+    fcLabels.push(d.toLocaleDateString('en-GB',{day:'numeric',month:'short',timeZone:'UTC'}));
     // Full date for tooltip
-    fcDateLabels.push(d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}));
+    fcDateLabels.push(d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}));
     fcRates.push(parseFloat((rate*1e6).toFixed(3)));
 
     // Wallet value components
@@ -1471,10 +1610,10 @@ function run(){
     fcCtcVals.push(parseFloat(ctcUSD.toFixed(4)));
     fcTotalVals.push(parseFloat((walletBaseUsd+ctcUSD+HSH_USD_FIXED).toFixed(4)));
 
-    if(d.getDate()===1||i===totalDays-1){
-      if(d.getMonth()===0||i===totalDays-1){
+    if(d.getUTCDate()===1||i===totalDays-1){
+      if(d.getUTCMonth()===0||i===totalDays-1){
         tblRows.push({
-          lbl:d.getFullYear()+(d.getMonth()!==0?' '+d.toLocaleDateString('en-GB',{month:'short'}):''),
+          lbl:d.getUTCFullYear()+(d.getUTCMonth()!==0?' '+d.toLocaleDateString('en-GB',{month:'short',timeZone:'UTC'}):''),
           rate:parseFloat((rate*1e6).toFixed(2)),
           cumul:parseFloat(cumul.toFixed(7)),
           usd:(cumul*ctcPrice).toFixed(3)
@@ -1484,7 +1623,7 @@ function run(){
   }
   if(btcDays===0) btcPeak=btcBal;
 
-  var day1rate=K_HSH*100+K_CTC*0.01998823+K_TOTAL_USD*Math.max(0,walletUSD);
+  var day1rate=K_HSH*currentHshBalance+K_CTC*Math.max(currentCtcBalance,0)+K_TOTAL_USD*Math.max(0,walletUSD);
   var yDay=walletUSD>0?(day1rate*ctcPrice/walletUSD*100):0;
   document.getElementById('s-ctc').textContent=cumul.toFixed(6)+' CTC';
   document.getElementById('s-usd').textContent=ctcPrice>0?'$'+(cumul*ctcPrice).toFixed(3):'set price for USD';
@@ -1499,16 +1638,6 @@ function run(){
   tblRows.forEach(function(r){
     tbody.innerHTML+='<tr><td>'+r.lbl+'</td><td class="td-blue">'+r.rate+'</td><td class="td-green">'+r.cumul+'</td>'+(showUSD?'<td>$'+r.usd+'</td>':'')+'</tr>';
   });
-
-  var historyData=modelHistoryOverride || STATIC_MODEL_HISTORY;
-  var histLabels=Array.isArray(historyData.histLabels) && historyData.histLabels.length ? historyData.histLabels : STATIC_MODEL_HISTORY.histLabels;
-  var histActual=Array.isArray(historyData.actual) && historyData.actual.length ? historyData.actual : STATIC_MODEL_HISTORY.actual;
-  var histModelled=Array.isArray(historyData.modelled) && historyData.modelled.length ? historyData.modelled : STATIC_MODEL_HISTORY.modelled;
-  var errLabels=Array.isArray(historyData.errLabels) && historyData.errLabels.length ? historyData.errLabels : STATIC_MODEL_HISTORY.errLabels;
-  var errValues=Array.isArray(historyData.errValues) && historyData.errValues.length ? historyData.errValues : STATIC_MODEL_HISTORY.errValues;
-  var btcLabels=Array.isArray(historyData.btcLabels) && historyData.btcLabels.length ? historyData.btcLabels : STATIC_MODEL_HISTORY.btcLabels;
-  var btcValues=Array.isArray(historyData.btcValues) && historyData.btcValues.length ? historyData.btcValues : STATIC_MODEL_HISTORY.btcValues;
-  var btcAvgSeries=Array.isArray(historyData.btcAvg) && historyData.btcAvg.length ? historyData.btcAvg : STATIC_MODEL_HISTORY.btcAvg;
 
   var nH=histLabels.length;
   // Combine hist labels + forecast date labels for tooltips
@@ -3877,6 +4006,160 @@ run();
   var selectedWalletSymbol=null;
   var historyPage=1;
   var historyPageSize=20;
+  var walletDemoNote=document.getElementById('wallet-demoNote');
+  var walletQueryParams=new URLSearchParams(location.search);
+  var publicDemoMode=walletQueryParams.get('demo')==='1';
+
+  if(publicDemoMode && walletDemoNote){
+    walletDemoNote.hidden=false;
+  }
+
+  function deepClone(value){
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  function buildWalletMirrorPaths(points){
+    var values=(Array.isArray(points)?points:[]).filter(function(value){ return Number.isFinite(value); });
+    if(!values.length){
+      return {linePath:'',fillPath:''};
+    }
+    var width=1023;
+    var height=110;
+    var topPad=12;
+    var bottomPad=16;
+    var min=Math.min.apply(null,values);
+    var max=Math.max.apply(null,values);
+    var span=Math.max(max-min,1e-9);
+    var step=values.length===1 ? 0 : width/(values.length-1);
+    var coords=values.map(function(value,index){
+      var x=step*index;
+      var y=topPad+((max-value)/span)*(height-topPad-bottomPad);
+      return {x:x,y:y};
+    });
+    var line='M'+coords[0].x.toFixed(2)+' '+coords[0].y.toFixed(2);
+    for(var index=1;index<coords.length;index+=1){
+      line+=' L'+coords[index].x.toFixed(2)+' '+coords[index].y.toFixed(2);
+    }
+    var fill=line+' L'+coords[coords.length-1].x.toFixed(2)+' '+height+' L0 '+height+' Z';
+    return {linePath:line,fillPath:fill};
+  }
+
+  function buildDemoEntries(){
+    return [
+      {datetimeIso:'2026-04-09T18:12:00.000Z',datetimeLabel:'9 Apr 21:12',assetName:'HashCoin',symbol:'HSH',amountText:'+240.00 HSH',amountValue:240,status:'Completed'},
+      {datetimeIso:'2026-04-10T06:40:00.000Z',datetimeLabel:'10 Apr 09:40',assetName:'CTC',symbol:'CTC',amountText:'+0.00081200 CTC',amountValue:0.000812,status:'Completed'},
+      {datetimeIso:'2026-04-11T14:18:00.000Z',datetimeLabel:'11 Apr 17:18',assetName:'Bitcoin',symbol:'BTC',amountText:'+0.00000081 BTC',amountValue:0.00000081,status:'Completed'},
+      {datetimeIso:'2026-04-12T06:35:00.000Z',datetimeLabel:'12 Apr 09:35',assetName:'CTC',symbol:'CTC',amountText:'+0.00082600 CTC',amountValue:0.000826,status:'Completed'},
+      {datetimeIso:'2026-04-13T06:29:00.000Z',datetimeLabel:'13 Apr 09:29',assetName:'CTC',symbol:'CTC',amountText:'+0.00084100 CTC',amountValue:0.000841,status:'Completed'},
+      {datetimeIso:'2026-04-14T06:24:00.000Z',datetimeLabel:'14 Apr 09:24',assetName:'CTC',symbol:'CTC',amountText:'+0.00085700 CTC',amountValue:0.000857,status:'Completed'},
+      {datetimeIso:'2026-04-15T19:46:00.000Z',datetimeLabel:'15 Apr 22:46',assetName:'TON',symbol:'TON',amountText:'+0.210000 TON',amountValue:0.21,status:'Completed'},
+      {datetimeIso:'2026-04-16T06:21:00.000Z',datetimeLabel:'16 Apr 09:21',assetName:'CTC',symbol:'CTC',amountText:'+0.00087400 CTC',amountValue:0.000874,status:'Completed'},
+      {datetimeIso:'2026-04-18T06:14:00.000Z',datetimeLabel:'18 Apr 09:14',assetName:'CTC',symbol:'CTC',amountText:'+0.00089200 CTC',amountValue:0.000892,status:'Completed'},
+      {datetimeIso:'2026-04-20T13:18:00.000Z',datetimeLabel:'20 Apr 16:18',assetName:'Bitcoin',symbol:'BTC',amountText:'+0.00000056 BTC',amountValue:0.00000056,status:'Completed'},
+      {datetimeIso:'2026-04-21T06:17:00.000Z',datetimeLabel:'21 Apr 09:17',assetName:'CTC',symbol:'CTC',amountText:'+0.00091500 CTC',amountValue:0.000915,status:'Completed'},
+      {datetimeIso:'2026-04-23T06:11:00.000Z',datetimeLabel:'23 Apr 09:11',assetName:'CTC',symbol:'CTC',amountText:'+0.00093400 CTC',amountValue:0.000934,status:'Completed'},
+      {datetimeIso:'2026-04-25T06:09:00.000Z',datetimeLabel:'25 Apr 09:09',assetName:'CTC',symbol:'CTC',amountText:'+0.00095600 CTC',amountValue:0.000956,status:'Completed'},
+      {datetimeIso:'2026-04-27T17:02:00.000Z',datetimeLabel:'27 Apr 20:02',assetName:'Bitcoin',symbol:'BTC',amountText:'+0.00000102 BTC',amountValue:0.00000102,status:'Completed'},
+      {datetimeIso:'2026-04-28T06:04:00.000Z',datetimeLabel:'28 Apr 09:04',assetName:'CTC',symbol:'CTC',amountText:'+0.00097800 CTC',amountValue:0.000978,status:'Completed'},
+      {datetimeIso:'2026-04-29T19:56:00.000Z',datetimeLabel:'29 Apr 22:56',assetName:'HashCoin',symbol:'HSH',amountText:'+845.00 HSH',amountValue:845,status:'Completed'}
+    ];
+  }
+
+  function buildDemoWalletPayload(activeRangeLabel){
+    var rangeLabel=activeRangeLabel||'Month';
+    var rangeSeries={
+      Day:[76320,76410,76580,76650,76810,76930,77140,77260,77380,77520,77680,77810],
+      Week:[74210,74840,75210,75660,76020,76450,76810,77220,77640,78010,78410,78730],
+      Month:[70120,70840,71490,72320,73180,73940,74810,75690,76480,77210,78040,78620],
+      Year:[48220,49840,51210,53680,55940,58420,61210,64340,68110,72180,75610,78490]
+    };
+    var priceByRange={Day:77810.24,Week:78144.77,Month:78491.22,Year:78491.22,All:78491.22};
+    var changeByRange={
+      Day:'+412.63 (+0.53%)',
+      Week:'+1184.22 (+1.54%)',
+      Month:'+1326.40 (+1.72%)',
+      Year:'+16342.90 (+26.29%)',
+      All:'+16342.90 (+26.29%)'
+    };
+    var referenceByRange={
+      Day:'77,402.11 USD',
+      Week:'76,960.55 USD',
+      Month:'75,812.41 USD',
+      Year:'62,148.32 USD',
+      All:'62,148.32 USD'
+    };
+    var chart=buildWalletMirrorPaths(rangeSeries[rangeLabel] || rangeSeries.Month);
+    var entries=buildDemoEntries().slice().sort(function(a,b){
+      return new Date(b.datetimeIso).getTime()-new Date(a.datetimeIso).getTime();
+    });
+    return {
+      authenticated:true,
+      syncedAt:'2026-04-29T20:08:00.000Z',
+      walletTotalUsd:14.13,
+      fundedWalletCount:4,
+      visibleCount:entries.length,
+      totalsBySymbol:{BTC:0.00014321,CTC:0.02841,HSH:845,TON:0.7285},
+      lastTransaction:{
+        amountText:'+845.00 HSH',
+        status:'Completed',
+        datetimeLabel:'29 Apr 22:56'
+      },
+      wallets:[
+        {assetName:'Bitcoin',symbol:'BTC',balanceText:'0.00014321 BTC',totalUsdText:'11.24 USD',totalUsd:11.24,changeText:'+1234.52 (+1.60%)',priceUsd:78491.22},
+        {assetName:'CTC',symbol:'CTC',balanceText:'0.02841000 CTC',totalUsdText:'0.03 USD',totalUsd:0.03,changeText:'+0.0008 (+0.08%)',priceUsd:1.201},
+        {assetName:'TON',symbol:'TON',balanceText:'0.728500 TON',totalUsdText:'1.97 USD',totalUsd:1.97,changeText:'+0.0620 (+4.11%)',priceUsd:2.704},
+        {assetName:'HashCoin',symbol:'HSH',balanceText:'845.00 HSH',totalUsdText:'0.89 USD',totalUsd:0.89,changeText:'+0.0000023 (+0.24%)',priceUsd:0.00105}
+      ],
+      activeWalletDetail:{
+        symbol:'BTC',
+        titleLine:'Sanitized BTC demo',
+        activeRangeLabel:rangeLabel,
+        timeframeOptions:['Day','Week','Month','Year','All'],
+        priceUsd:priceByRange[rangeLabel] || priceByRange.Month,
+        priceUsdText:(priceByRange[rangeLabel] || priceByRange.Month).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+' USD',
+        changeText:changeByRange[rangeLabel] || changeByRange.Month,
+        chartFillPath:chart.fillPath,
+        chartLinePath:chart.linePath,
+        balanceText:'0.00014321 BTC',
+        totalUsdText:'11.24 USD',
+        address:'Hidden for public demo',
+        historyPrompt:'Sensitive wallet data hidden',
+        visibleHistoryCount:entries.length,
+        actions:[
+          {title:'Buy Bitcoin',subtitle:'Convenient payment methods'},
+          {title:'Deposit Bitcoin',subtitle:'Top up your wallet'},
+          {title:'Send Bitcoin',subtitle:'Transfer to any wallet'},
+          {title:'Exchange Bitcoin',subtitle:'Exchange any coins'},
+          {title:'History',subtitle:'Show all transactions'}
+        ],
+        referencePriceUsdText:referenceByRange[rangeLabel] || referenceByRange.Month,
+        referenceDateLabel:'Reference snapshot for public demo',
+        url:'Sanitized proof-of-concept screenshot'
+      },
+      entries:entries,
+      cachedEntries:entries,
+      cachedHistoryCount:entries.length,
+      cachedHistoryAdded:entries.length,
+      dbSummary:{
+        walletSyncCount:12,
+        signalViewCount:64,
+        walletHistoryRowCount:entries.length
+      }
+    };
+  }
+
+  function applyWalletPanelHashFocus(){
+    if(!location.hash) return;
+    var target=document.querySelector(location.hash);
+    if(!target) return;
+    setTimeout(function(){
+      try{
+        target.scrollIntoView({block:'start'});
+      } catch(_){
+        target.scrollIntoView(true);
+      }
+    },60);
+  }
 
   function formatUsd(value){
     if(!Number.isFinite(value)) return '--';
@@ -4182,7 +4465,9 @@ function syncModelWalletInput(payload){
   function renderStats(payload){
     var hasWalletOverview=Array.isArray(payload.wallets) && payload.wallets.length>0 && Number(payload.walletTotalUsd)>0;
     totalBalance.textContent=hasWalletOverview ? formatUsd(payload.walletTotalUsd) : '--';
-    totalBalanceMeta.textContent=hasWalletOverview ? ('Synced '+formatWhen(payload.syncedAt,payload.syncedAt)+'.') : 'Open the Wallets page in NC Wallet for full wallet total.';
+    totalBalanceMeta.textContent=hasWalletOverview
+      ? ((payload && payload.demoMode ? 'Sanitized demo sync ' : 'Synced ')+formatWhen(payload.syncedAt,payload.syncedAt)+'.')
+      : 'Open the Wallets page in NC Wallet for full wallet total.';
     fundedCount.textContent=hasWalletOverview ? String(payload.fundedWalletCount||0) : '--';
     fundedCountMeta.textContent=hasWalletOverview ? ((payload.wallets||[]).map(function(wallet){ return wallet.symbol; }).join(', ')||'No funded wallets found.') : 'Wallet list not visible on the current NC Wallet page.';
     lastTransaction.textContent=payload.lastTransaction && payload.lastTransaction.amountText ? payload.lastTransaction.amountText : '--';
@@ -4204,7 +4489,17 @@ function syncModelWalletInput(payload){
     var cacheSuffix=payload.cachedHistoryCount
       ? ' Cached tx rows: '+payload.cachedHistoryCount+(Number.isFinite(payload.cachedHistoryAdded) ? ' ('+payload.cachedHistoryAdded+' new this sync).' : '.')
       : '';
-    syncSummary.textContent='Live NC Wallet sync from the authenticated browser tab at '+formatWhen(payload.syncedAt,payload.syncedAt)+'.'+cacheSuffix+dbSuffix;
+    var audit=payload && payload.latestModelDeltaAudit ? payload.latestModelDeltaAudit : null;
+    var auditSuffix=audit
+      ? (' Audit: '+String(audit.newHistoryRowCount||0)+' new tx, wallet Δ '+((Number(audit.walletTotalUsdDelta)||0)>=0?'+':'')+Number(Number(audit.walletTotalUsdDelta)||0).toFixed(4)+' USD'
+        +(Number.isFinite(Number(audit.latestModelRateMicro)) ? ', model '+Number(audit.latestModelRateMicro).toFixed(2)+'μ' : '')
+        +(Number.isFinite(Number(audit.latestActualRateMicro)) ? ' vs actual '+Number(audit.latestActualRateMicro).toFixed(2)+'μ' : '')
+        +(Number.isFinite(Number(audit.latestErrorPercent)) ? ' ('+((Number(audit.latestErrorPercent)||0)>=0?'+':'')+Number(audit.latestErrorPercent).toFixed(2)+'%)' : '')
+        +'.')
+      : '';
+    syncSummary.textContent=payload && payload.demoMode
+      ? 'Sanitized demo mirror for public screenshots at '+formatWhen(payload.syncedAt,payload.syncedAt)+'. Balances, identity, and transaction values are intentionally altered.'+dbSuffix
+      : 'Live NC Wallet sync from the authenticated browser tab at '+formatWhen(payload.syncedAt,payload.syncedAt)+'.'+cacheSuffix+dbSuffix+auditSuffix;
   }
 
   function renderPayload(payload){
@@ -4218,6 +4513,9 @@ function syncModelWalletInput(payload){
     renderWallets(payload);
     renderHistory(payload);
     renderWalletChart(payload);
+    if(publicDemoMode){
+      applyWalletPanelHashFocus();
+    }
   }
 
   function renderError(message){
@@ -4259,13 +4557,42 @@ function syncModelWalletInput(payload){
     detailActionGrid.innerHTML='<div class=\"wallet-empty\">'+message+'</div>';
   }
 
+  function renderHealthWarning(health){
+    var message=health && health.message ? health.message : 'NC Wallet data is stale.';
+    var recovery=health && health.recovery ? health.recovery : 'Reopen Wallets, History, or a coin page in NC Wallet, then sync again.';
+    if(!lastPayload){
+      renderError(message+' '+recovery);
+      return;
+    }
+    syncSummary.textContent=message+' '+recovery+' Last good sync is still shown below.';
+    totalBalanceMeta.textContent='Last good wallet snapshot kept.';
+    fundedCountMeta.textContent='Last good wallet snapshot kept.';
+    lastTransactionMeta.textContent='Last good wallet snapshot kept.';
+    visibleCountMeta.textContent='Last good wallet snapshot kept.';
+    detailSummary.textContent=message;
+    detailState.textContent='Stale';
+    detailChange.textContent=recovery;
+    detailChange.className='wallet-mirror-change wallet-negative';
+    detailSourceMeta.textContent='Last good sync kept until NC Wallet shows live data again.';
+    showAppToast('NC Wallet stale',message,5000);
+  }
+
   async function syncWallet(){
     syncButton.disabled=true;
-    syncButton.textContent='Syncing...';
+    syncButton.textContent=publicDemoMode ? 'Refreshing demo...' : 'Syncing...';
     try{
+      if(publicDemoMode){
+        selectedWalletSymbol=null;
+        renderPayload(buildDemoWalletPayload('Month'));
+        return;
+      }
       var response=await fetchWithServerToast('/api/ncwallet/history',{headers:{accept:'application/json'}});
       var payload=await response.json();
       if(!response.ok){
+        if(payload && payload.payload && payload.payload.health && payload.payload.health.stale){
+          renderHealthWarning(payload.payload.health);
+          return;
+        }
         throw new Error(payload.detail || payload.error || 'Wallet sync failed.');
       }
       renderPayload(payload);
@@ -4273,7 +4600,7 @@ function syncModelWalletInput(payload){
       renderError(error.message);
     } finally {
       syncButton.disabled=false;
-      syncButton.textContent='Sync wallet';
+      syncButton.textContent=publicDemoMode ? 'Refresh demo' : 'Sync wallet';
     }
   }
 
@@ -4281,6 +4608,10 @@ function syncModelWalletInput(payload){
     if(!label || location.protocol==='file:') return;
     detailState.textContent='Switching '+label;
     try{
+      if(publicDemoMode){
+        renderPayload(buildDemoWalletPayload(label));
+        return;
+      }
       var response=await fetchWithServerToast('/api/ncwallet/range',{
         method:'POST',
         headers:{accept:'application/json','content-type':'application/json'},
@@ -4288,6 +4619,10 @@ function syncModelWalletInput(payload){
       });
       var payload=await response.json();
       if(!response.ok){
+        if(payload && payload.payload && payload.payload.health && payload.payload.health.stale){
+          renderHealthWarning(payload.payload.health);
+          return;
+        }
         throw new Error(payload.detail || payload.error || 'Range switch failed.');
       }
       renderPayload(payload);
@@ -4333,7 +4668,9 @@ function syncModelWalletInput(payload){
     renderError('Open this app through http://127.0.0.1:4173 to sync NC Wallet data.');
   } else {
     syncWallet();
-    setInterval(syncWallet,45000);
+    if(!publicDemoMode){
+      setInterval(syncWallet,45000);
+    }
   }
 })();
 </script>
