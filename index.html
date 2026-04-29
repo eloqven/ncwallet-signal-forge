@@ -1084,6 +1084,20 @@ function formatFooterWhen(iso){
   }
 }
 
+function saveUiStateValue(key,value){
+  try{
+    localStorage.setItem(key,String(value));
+  } catch(error){}
+}
+
+function loadUiStateValue(key){
+  try{
+    return localStorage.getItem(key);
+  } catch(error){
+    return null;
+  }
+}
+
 async function saveTodoItemsToDb(items){
   if(location.protocol==='file:') return;
   try{
@@ -1163,6 +1177,7 @@ function initSectionJump(){
     buttons.forEach(function(button){
       button.classList.toggle('is-active',button.getAttribute('data-jump-target')===id);
     });
+    if(id) saveUiStateValue('ncwallet-active-section-v1',id);
   }
   buttons.forEach(function(button){
     button.addEventListener('click',function(){
@@ -1187,6 +1202,14 @@ function initSectionJump(){
       var target=id ? document.getElementById(id) : null;
       if(target) observer.observe(target);
     });
+  }
+  var savedTarget=loadUiStateValue('ncwallet-active-section-v1');
+  var savedSection=savedTarget ? document.getElementById(savedTarget) : null;
+  if(savedSection){
+    setActive(savedTarget);
+    setTimeout(function(){
+      savedSection.scrollIntoView({block:'start'});
+    },120);
   }
 }
 
@@ -2190,6 +2213,18 @@ run();
     ratioQuoteSelect.innerHTML=options;
     ratioBaseSelect.value='BTC';
     ratioQuoteSelect.value='ETH';
+    var savedBase=loadUiStateValue('ncwallet-ratio-base-v1');
+    var savedQuote=loadUiStateValue('ncwallet-ratio-quote-v1');
+    var savedTimeframe=loadUiStateValue('ncwallet-ratio-timeframe-v1');
+    var savedMaMode=loadUiStateValue('ncwallet-ratio-ma-v1');
+    var savedIndicator=loadUiStateValue('ncwallet-ratio-indicator-v1');
+    var savedSort=loadUiStateValue('ncwallet-ratio-sort-v1');
+    if(savedBase && ratioAssets.some(function(asset){ return asset.symbol===savedBase; })) ratioBaseSelect.value=savedBase;
+    if(savedQuote && ratioAssets.some(function(asset){ return asset.symbol===savedQuote; })) ratioQuoteSelect.value=savedQuote;
+    if(savedTimeframe && Array.from(ratioTimeframeSelect.options).some(function(option){ return option.value===savedTimeframe; })) ratioTimeframeSelect.value=savedTimeframe;
+    if(savedMaMode && Array.from(ratioMaMode.options).some(function(option){ return option.value===savedMaMode; })) ratioMaMode.value=savedMaMode;
+    if(savedIndicator && Array.from(ratioIndicatorMode.options).some(function(option){ return option.value===savedIndicator; })) ratioIndicatorMode.value=savedIndicator;
+    if(ratioSortSelect && savedSort && Array.from(ratioSortSelect.options).some(function(option){ return option.value===savedSort; })) ratioSortSelect.value=savedSort;
   }
 
   function ratioIndicatorLabel(){
@@ -3286,6 +3321,11 @@ run();
 
   [ratioBaseSelect,ratioQuoteSelect,ratioTimeframeSelect,ratioMaMode,ratioIndicatorMode].forEach(function(element){
     element.addEventListener('change',async function(){
+      saveUiStateValue('ncwallet-ratio-base-v1',ratioBaseSelect.value);
+      saveUiStateValue('ncwallet-ratio-quote-v1',ratioQuoteSelect.value);
+      saveUiStateValue('ncwallet-ratio-timeframe-v1',ratioTimeframeSelect.value);
+      saveUiStateValue('ncwallet-ratio-ma-v1',ratioMaMode.value);
+      saveUiStateValue('ncwallet-ratio-indicator-v1',ratioIndicatorMode.value);
       ratioUpdateCard();
       if(location.protocol==='file:') return;
       await ratioRefreshAnalysis();
@@ -3296,13 +3336,18 @@ run();
     var currentBase=ratioBaseSelect.value;
     ratioBaseSelect.value=ratioQuoteSelect.value;
     ratioQuoteSelect.value=currentBase;
+    saveUiStateValue('ncwallet-ratio-base-v1',ratioBaseSelect.value);
+    saveUiStateValue('ncwallet-ratio-quote-v1',ratioQuoteSelect.value);
     ratioUpdateCard();
     if(location.protocol==='file:') return;
     await ratioRefreshAnalysis();
   });
 
   ratioSearchInput.addEventListener('input',ratioRenderTable);
-  if(ratioSortSelect) ratioSortSelect.addEventListener('change',ratioRenderTable);
+  if(ratioSortSelect) ratioSortSelect.addEventListener('change',function(){
+    saveUiStateValue('ncwallet-ratio-sort-v1',ratioSortSelect.value);
+    ratioRenderTable();
+  });
   ratioBatchForecastButton.addEventListener('click',ratioBatchForecastAllPairs);
 
   window.addEventListener('ncwallet:wallet-sync',function(event){
