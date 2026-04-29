@@ -86,6 +86,9 @@ input[type=number]:focus{border-color:var(--accent);}
 .wallet-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;}
 .wallet-action,.ratio-button{padding:9px 12px;border:1px solid var(--control-border);border-radius:var(--radius-sm);background:linear-gradient(90deg,var(--accent),var(--accent2));color:#fff;font:inherit;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;}
 .wallet-action:disabled,.ratio-button:disabled{opacity:.55;cursor:not-allowed;}
+.panel-collapseButton{padding:7px 10px;border:1px solid var(--control-border);border-radius:999px;background:var(--bg3);color:var(--text2);font:600 11px 'DM Sans',sans-serif;cursor:pointer;}
+.panel-collapseButton.is-collapsed{color:var(--text);}
+.is-collapsed{display:none!important;}
 .wallet-stats-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px;}
 .wallet-stat{background:var(--bg3);border:1px solid var(--panel-border);border-radius:var(--radius-sm);padding:10px 12px;}
 .wallet-stat strong{display:block;margin-bottom:6px;font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);}
@@ -518,8 +521,12 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
         <div class="chart-title">Opened coin page</div>
         <p class="ratio-lead" id="wallet-detailSummary">Open a specific NC Wallet coin page to mirror its deeper view here.</p>
       </div>
-      <span class="wallet-chip" id="wallet-detailState">Waiting</span>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span class="wallet-chip" id="wallet-detailState">Waiting</span>
+        <button class="panel-collapseButton" id="wallet-detailCollapse" type="button" data-collapse-target="wallet-detailBody">Collapse</button>
+      </div>
     </div>
+    <div id="wallet-detailBody">
     <div class="wallet-mirror-shell">
       <div class="wallet-mirror-topbar">
         <span class="wallet-mirror-back">&larr;</span>
@@ -577,6 +584,7 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
         </div>
       </div>
     </div>
+    </div>
   </div>
   <div class="wallet-history-wrap">
     <table>
@@ -622,8 +630,10 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
           <option value="walletdelta">Wallet delta only</option>
           <option value="error">Error rows only</option>
         </select>
+        <button class="panel-collapseButton" id="wallet-auditCollapse" type="button" data-collapse-target="wallet-auditBody">Collapse</button>
       </div>
     </div>
+    <div id="wallet-auditBody">
     <div class="wallet-table-wrap">
       <table>
         <thead>
@@ -639,6 +649,7 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
         </thead>
         <tbody id="wallet-auditTableBody"></tbody>
       </table>
+    </div>
     </div>
   </div>
 </div>
@@ -817,7 +828,11 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
 
     <div class="ratio-module">
       <div class="chart-title">Watchlist</div>
-      <p class="ratio-lead">Filter by name or symbol to inspect which assets have live pricing versus manual placeholders.</p>
+      <div class="wallet-head" style="margin-bottom:10px;">
+        <p class="ratio-lead" style="margin:0;">Filter by name or symbol to inspect which assets have live pricing versus manual placeholders.</p>
+        <button class="panel-collapseButton" id="ratio-watchCollapse" type="button" data-collapse-target="ratio-watchBody">Collapse</button>
+      </div>
+      <div id="ratio-watchBody">
       <div class="ratio-watch-toolbar">
         <label for="ratio-searchInput">Search assets</label>
         <div style="display:grid;grid-template-columns:minmax(0,1fr) 170px;gap:10px;">
@@ -841,6 +856,7 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
           </thead>
           <tbody id="ratio-assetTableBody"></tbody>
         </table>
+      </div>
       </div>
     </div>
   </div>
@@ -1283,6 +1299,18 @@ function initLivePanelRefresh(){
   });
 }
 
+function initPanelCollapseButtons(){
+  document.querySelectorAll('[data-collapse-target]').forEach(function(button){
+    button.addEventListener('click',function(){
+      var target=document.getElementById(button.getAttribute('data-collapse-target'));
+      if(!target) return;
+      var collapsed=target.classList.toggle('is-collapsed');
+      button.classList.toggle('is-collapsed',collapsed);
+      button.textContent=collapsed ? 'Expand' : 'Collapse';
+    });
+  });
+}
+
 async function queueTodoItemInDb(todoId){
   if(location.protocol==='file:') return null;
   var response=await fetchWithServerToast('/api/local-db/todo/queue',{
@@ -1551,6 +1579,7 @@ loadDbSummaryMeta();
 loadExportHistoryMeta();
 initSectionJump();
 initLivePanelRefresh();
+initPanelCollapseButtons();
 
 function updateSliderMax(){
   var u=document.getElementById('sel-unit').value;
