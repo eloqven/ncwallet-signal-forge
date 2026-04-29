@@ -804,7 +804,14 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
       <p class="ratio-lead">Filter by name or symbol to inspect which assets have live pricing versus manual placeholders.</p>
       <div class="ratio-watch-toolbar">
         <label for="ratio-searchInput">Search assets</label>
-        <input id="ratio-searchInput" class="ratio-search" type="search" placeholder="Search by name or symbol">
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) 170px;gap:10px;">
+          <input id="ratio-searchInput" class="ratio-search" type="search" placeholder="Search by name or symbol">
+          <select id="ratio-sortSelect" class="ratio-select" aria-label="Watchlist sort">
+            <option value="value-desc">Value: high to low</option>
+            <option value="symbol-asc">Symbol: A to Z</option>
+            <option value="status-live">Status: live first</option>
+          </select>
+        </div>
       </div>
       <div class="ratio-watch-table">
         <table>
@@ -2078,6 +2085,7 @@ run();
   var ratioIndicatorMode=document.getElementById('ratio-indicatorMode');
   var ratioSwapButton=document.getElementById('ratio-swapButton');
   var ratioSearchInput=document.getElementById('ratio-searchInput');
+  var ratioSortSelect=document.getElementById('ratio-sortSelect');
   var ratioAssetTableBody=document.getElementById('ratio-assetTableBody');
   var ratioPairLabel=document.getElementById('ratio-pairLabel');
   var ratioRatioValue=document.getElementById('ratio-ratioValue');
@@ -2204,17 +2212,29 @@ run();
         ? ((position.source==='wallet'?'Wallet':'Visible history')+' + '+priceStatus)
         : priceStatus;
       var rowClass=position ? 'ratio-watch-held' : '';
+      var sortStatusRank=position ? 0 : (priceStatus==='Live' ? 1 : (priceStatus==='Manual' ? 2 : 3));
       var valueMarkup=position
         ? '<div class="ratio-watch-value"><strong>'+ratioFormatUsd(derivedValue)+'</strong><small>'+ratioFormatHoldingAmount(position.amount)+' '+asset.symbol+(position.source==='history'?' net visible':'')+'</small></div>'
         : '--';
-      return '<tr class="'+rowClass+'">'
+      return {
+        symbol:asset.symbol,
+        sortValue:Number.isFinite(derivedValue) ? derivedValue : -1,
+        sortStatusRank:sortStatusRank,
+        markup:'<tr class="'+rowClass+'">'
         +'<td><div class="ratio-watch-name"><strong>'+asset.symbol+'</strong><small>'+asset.name+(position && Number.isFinite(position.amount)?' | held '+ratioFormatHoldingAmount(position.amount)+' '+asset.symbol:'')+'</small></div></td>'
         +'<td>'+ratioFormatUsd(price)+'</td>'
         +'<td>'+valueMarkup+'</td>'
         +'<td class="'+statusClass+'">'+statusText+'</td>'
-      +'</tr>';
-    }).join('');
-    ratioAssetTableBody.innerHTML=rows;
+      +'</tr>'
+      };
+    });
+    var sortMode=ratioSortSelect ? ratioSortSelect.value : 'value-desc';
+    rows.sort(function(a,b){
+      if(sortMode==='symbol-asc') return a.symbol.localeCompare(b.symbol);
+      if(sortMode==='status-live') return a.sortStatusRank-b.sortStatusRank || b.sortValue-a.sortValue || a.symbol.localeCompare(b.symbol);
+      return b.sortValue-a.sortValue || a.symbol.localeCompare(b.symbol);
+    });
+    ratioAssetTableBody.innerHTML=rows.map(function(row){ return row.markup; }).join('');
   }
 
   function ratioBuildWalletPositions(payload){
@@ -3277,6 +3297,7 @@ run();
   });
 
   ratioSearchInput.addEventListener('input',ratioRenderTable);
+  if(ratioSortSelect) ratioSortSelect.addEventListener('change',ratioRenderTable);
   ratioBatchForecastButton.addEventListener('click',ratioBatchForecastAllPairs);
 
   window.addEventListener('ncwallet:wallet-sync',function(event){
