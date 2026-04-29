@@ -850,6 +850,8 @@ var defaultTodoItems=[
   {id:'server-restart-toast',status:'done',priority:3,task:'Server restart toast',scope:'Mild 5 second warning appears when local backend requests drop during a restart.'},
   {id:'project-repo-name',status:'done',priority:3,task:'Project repo name',scope:'Chosen repo name: ncwallet-signal-forge.'},
   {id:'backlog-hygiene-pass',status:'done',priority:3,task:'Backlog hygiene pass',scope:'Do one final consistency pass on the shared to-do and bug lists so footer defaults, DB state, and task statuses stay aligned.'},
+  {id:'user-created-future-todos-ui',status:'open',priority:3,task:'User-created future to-do UI',scope:'Add a small in-app UI so the user can create future open to-do items for the devs while the app is running.'},
+  {id:'same-day-model-refresh',status:'done',priority:1,task:'Same-day model refresh for new wallet flows',scope:'Use same-day synced wallet transactions, including newly added HSH, in the latest daily model point and avoid forcing missing CTC/BTC days to zero in the charts.'},
   {id:'sync-health-guard',status:'open',priority:1,task:'NC Wallet sync health guard',scope:'Detect expired, welcome, or broken NC Wallet states during mirror and gatherer flows, mark stale data clearly, and surface recovery guidance before misleading sync data is saved.'},
   {id:'model-delta-audit',status:'open',priority:2,task:'Model delta audit trail',scope:'After wallet sync, record which new transactions changed model inputs, wallet USD totals, forecast error stats, and other derived values so daily processing is traceable.'},
   {id:'dataset-export-snapshot',status:'open',priority:3,task:'Dataset export snapshot',scope:'Add a one-click export of gathered wallet snapshots, page views, forecasts, history rows, bugs, and to-do metadata into a timestamped JSON file.'}
@@ -858,7 +860,8 @@ var defaultBugItems=[
   {id:'gatherer-refresh-idle',status:'open',reportedAt:'2026-04-29',bug:'NC Wallet gatherer can appear to refresh and go idle',context:'Complaint after the watched-target work: gatherer run looked like a refresh and then idle instead of clearly continuing or surfacing the blocker.'},
   {id:'todo-agent-queued-shows-waiting',status:'done',reportedAt:'2026-04-29',bug:'Queued agent button can show Waiting instead of Queued',context:'Complaint after queueing a to-do item: the Agent column label drifted from the clicked queued state and looked misleading.'},
   {id:'agent-queue-nonautomated',status:'done',reportedAt:'2026-04-29',bug:'Non-automated tasks looked queueable',context:'Complaint during queue testing: manual tasks could look queued even though no real automation handler existed.'},
-  {id:'bug-table-not-working',status:'open',reportedAt:'2026-04-29',bug:'Bug table not working',context:'Needs testing after queue implementation/testing.'}
+  {id:'bug-table-not-working',status:'open',reportedAt:'2026-04-29',bug:'Bug table not working',context:'Needs testing after queue implementation/testing.'},
+  {id:'model-history-missing-same-day-flows',status:'open',reportedAt:'2026-04-29',bug:'Model history was forcing missing days to zero and ignored same-day HSH in the latest model point',context:'Complaint after wallet sync with a new HSH credit: the chart looked broken/missing and the new same-day HSH flow did not trigger a fresh daily model value.'}
 ];
 
 var UNIT_MAXES={days:365,weeks:52,months:36,years:3};
@@ -1314,6 +1317,8 @@ function buildModelHistoryFromEntries(entries){
       label:modelDayLabel(cursor),
       actual:0,
       btc:0,
+      hasActual:false,
+      hasBtc:false,
       flows:{}
     });
     cursor.setDate(cursor.getDate()+1);
@@ -1324,13 +1329,22 @@ function buildModelHistoryFromEntries(entries){
     var bucket=buckets.get(key);
     if(!bucket) return;
     bucket.flows[entry.symbol]=(bucket.flows[entry.symbol]||0)+entry.amountValue;
-    if(entry.symbol==='CTC') bucket.actual+=entry.amountValue*1e6;
-    if(entry.symbol==='BTC') bucket.btc+=entry.amountValue*1e8;
+    if(entry.symbol==='CTC'){
+      bucket.actual+=entry.amountValue*1e6;
+      bucket.hasActual=true;
+    }
+    if(entry.symbol==='BTC'){
+      bucket.btc+=entry.amountValue*1e8;
+      bucket.hasBtc=true;
+    }
   });
 
   var holdings={};
   var labels=[], actual=[], modelled=[], btcValues=[];
   Array.from(buckets.values()).sort(function(a,b){ return a.date.getTime()-b.date.getTime(); }).forEach(function(bucket){
+    Object.keys(bucket.flows).forEach(function(symbol){
+      holdings[symbol]=(holdings[symbol]||0)+bucket.flows[symbol];
+    });
     var baseUsd=0;
     Object.keys(holdings).forEach(function(symbol){
       if(symbol==='CTC' || symbol==='HSH') return;
@@ -1339,17 +1353,16 @@ function buildModelHistoryFromEntries(entries){
     });
     var dayModel=((K_HSH*(holdings.HSH||0))+(K_CTC*(holdings.CTC||0))+(K_TOTAL_USD*baseUsd))*1e6;
     labels.push(bucket.label);
-    actual.push(parseFloat(bucket.actual.toFixed(2)));
+    actual.push(bucket.hasActual ? parseFloat(bucket.actual.toFixed(2)) : null);
     modelled.push(parseFloat(dayModel.toFixed(2)));
-    btcValues.push(Math.round(bucket.btc));
-    Object.keys(bucket.flows).forEach(function(symbol){
-      holdings[symbol]=(holdings[symbol]||0)+bucket.flows[symbol];
-    });
+    btcValues.push(bucket.hasBtc ? Math.round(bucket.btc) : null);
   });
 
   var btcAvg=btcValues.map(function(_,index){
-    if(index<6) return null;
-    return parseFloat(modelMean(btcValues.slice(index-6,index+1)).toFixed(1));
+    if(!Number.isFinite(btcValues[index])) return null;
+    var visibleRecent=btcValues.slice(0,index+1).filter(function(value){ return Number.isFinite(value); });
+    if(visibleRecent.length<7) return null;
+    return parseFloat(modelMean(visibleRecent.slice(-7)).toFixed(1));
   });
   var errPairs=labels.map(function(label,index){
     var act=actual[index];
