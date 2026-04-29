@@ -45,6 +45,7 @@ body.theme-light{
 .section-jump button{padding:7px 10px;border:1px solid var(--control-border);border-radius:999px;background:var(--bg3);color:var(--text2);font:600 11px 'DM Sans',sans-serif;cursor:pointer;transition:background .18s ease,color .18s ease,border-color .18s ease,transform .18s ease;}
 .section-jump button:hover{color:var(--text);border-color:var(--accent);}
 .section-jump button.is-active{background:linear-gradient(90deg,var(--accent),var(--accent2));border-color:transparent;color:#fff;transform:translateY(-1px);}
+.section-anchorButton{display:inline-flex;align-items:center;justify-content:center;margin-left:8px;padding:3px 7px;border:1px solid var(--control-border);border-radius:999px;background:var(--bg3);color:var(--text2);font:700 10px 'DM Mono',monospace;cursor:pointer;vertical-align:middle;}
 
 /* Cards grid */
 .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:1.5rem;}
@@ -1312,6 +1313,32 @@ function initPanelCollapseButtons(){
   });
 }
 
+function initSectionAnchors(){
+  var targets=[
+    {id:'model-ratePanel',label:'Model'},
+    {id:'wallet-liveSyncPanel',label:'Wallet'},
+    {id:'ratio-monitorPanel',label:'Ratio'},
+    {id:'todo-cardPanel',label:'To-do'}
+  ];
+  targets.forEach(function(item){
+    var panel=document.getElementById(item.id);
+    if(!panel || panel.querySelector('[data-anchor-for=\"'+item.id+'\"]')) return;
+    var title=panel.querySelector('.chart-title');
+    if(!title) return;
+    var button=document.createElement('button');
+    button.type='button';
+    button.className='section-anchorButton';
+    button.setAttribute('data-anchor-for',item.id);
+    button.title='Set the page hash to #'+item.id;
+    button.textContent='#';
+    button.addEventListener('click',function(){
+      location.hash=item.id;
+      showAppToast('Section anchored',item.label+' is now addressable as #'+item.id+'.',2500);
+    });
+    title.appendChild(button);
+  });
+}
+
 async function queueTodoItemInDb(todoId){
   if(location.protocol==='file:') return null;
   var response=await fetchWithServerToast('/api/local-db/todo/queue',{
@@ -1581,6 +1608,7 @@ loadExportHistoryMeta();
 initSectionJump();
 initLivePanelRefresh();
 initPanelCollapseButtons();
+initSectionAnchors();
 
 function updateSliderMax(){
   var u=document.getElementById('sel-unit').value;
