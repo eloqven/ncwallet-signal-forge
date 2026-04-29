@@ -81,6 +81,8 @@ input[type=number]:focus{border-color:var(--accent);}
 .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--text2);margin-bottom:10px;}
 .li{display:flex;align-items:center;gap:5px;}
 .chart-wrap{position:relative;width:100%;}
+.chart-state-note{margin-top:10px;font-size:12px;color:var(--text2);}
+.chart-state-note strong{color:var(--text);font-weight:600;}
 .wallet-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;}
 .wallet-action,.ratio-button{padding:9px 12px;border:1px solid var(--control-border);border-radius:var(--radius-sm);background:linear-gradient(90deg,var(--accent),var(--accent2));color:#fff;font:inherit;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;}
 .wallet-action:disabled,.ratio-button:disabled{opacity:.55;cursor:not-allowed;}
@@ -399,6 +401,7 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
     <span class="li"><span style="width:18px;height:0;border-top:2px dashed #69f0ae;display:inline-block;"></span>Forecast</span>
   </div>
   <div class="chart-wrap" style="height:260px;"><canvas id="ch1"></canvas></div>
+  <p class="chart-state-note" id="chart-rateState">Waiting for synced model coverage.</p>
 </div>
 
 <div class="chart-panel">
@@ -408,6 +411,7 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
     <span class="li"><span style="width:18px;height:0;border-top:2px dashed #ef5350;display:inline-block;"></span>7-day avg</span>
   </div>
   <div class="chart-wrap" style="height:200px;"><canvas id="ch4"></canvas></div>
+  <p class="chart-state-note" id="chart-btcState">Waiting for synced BTC trend coverage.</p>
 </div>
 
 <div class="chart-panel">
@@ -1666,6 +1670,14 @@ function syncModelFromWalletPayload(payload){
   run();
 }
 
+function countRecordedDays(series){
+  return (Array.isArray(series) ? series : []).filter(function(value){ return Number.isFinite(value); }).length;
+}
+
+function countMissingDays(series){
+  return (Array.isArray(series) ? series : []).filter(function(value){ return value==null; }).length;
+}
+
 function run(){
   var btcPerDay=parseInt(document.getElementById('sl-btc').value);
   var btcDays=parseInt(document.getElementById('sl-btcdays').value);
@@ -1768,6 +1780,23 @@ function run(){
   var allVals=histActual.filter(function(v){return v!==null;}).concat(histModelled.filter(function(v){return v!==null;})).concat(fcRates);
   var yMin=Math.min.apply(null,allVals), yMax=Math.max.apply(null,allVals);
   var pad=(yMax-yMin)*0.05;
+  var actualCoverage=countRecordedDays(histActual);
+  var actualMissing=countMissingDays(histActual);
+  var modelCoverage=countRecordedDays(histModelled);
+  var btcCoverage=countRecordedDays(btcValues);
+  var btcMissing=countMissingDays(btcValues);
+  var btcAvgReadyIndex=btcAvgSeries.findIndex(function(value){ return Number.isFinite(value); });
+  var rateState=document.getElementById('chart-rateState');
+  var btcState=document.getElementById('chart-btcState');
+  if(rateState){
+    rateState.innerHTML='<strong>Coverage:</strong> actual '+actualCoverage+'/'+histActual.length+' days, model '+modelCoverage+' days, forecast starts '+(fcDateLabels[0]||'soon')+'. '
+      +(actualMissing ? actualMissing+' days have no recorded CTC payout row in the current synced history.' : 'No missing actual payout days inside the current synced range.');
+  }
+  if(btcState){
+    btcState.innerHTML='<strong>Coverage:</strong> BTC mining rows on '+btcCoverage+'/'+btcValues.length+' days. '
+      +(btcAvgReadyIndex>=0 ? '7-day average becomes available from '+btcLabels[btcAvgReadyIndex]+'. ' : '7-day average is waiting for enough observed BTC days. ')
+      +(btcMissing ? btcMissing+' days currently have no recorded BTC payout row.' : 'No missing BTC payout days inside the current synced range.');
+  }
 
   var css=getComputedStyle(document.body);
   var gc=css.getPropertyValue('--chart-grid').trim(), tc=css.getPropertyValue('--text3').trim();
