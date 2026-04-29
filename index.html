@@ -585,7 +585,10 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
     </table>
   </div>
   <div class="wallet-history-tools">
-    <p class="wallet-history-status" id="wallet-historyStatus">Showing 0 rows.</p>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <p class="wallet-history-status" id="wallet-historyStatus">Showing 0 rows.</p>
+      <input class="ratio-search" id="wallet-historySearch" type="search" placeholder="Filter history by asset or status" style="max-width:280px;">
+    </div>
     <div class="wallet-history-pager">
       <button class="wallet-history-nav" id="wallet-historyPrev" type="button" disabled>Prev</button>
       <span class="wallet-history-page" id="wallet-historyPage">Page 1 / 1</span>
@@ -4209,6 +4212,7 @@ run();
   var walletTableBody=document.getElementById('wallet-walletTableBody');
   var historyTableBody=document.getElementById('wallet-historyTableBody');
   var historyStatus=document.getElementById('wallet-historyStatus');
+  var historySearch=document.getElementById('wallet-historySearch');
   var historyPageLabel=document.getElementById('wallet-historyPage');
   var historyPrevButton=document.getElementById('wallet-historyPrev');
   var historyNextButton=document.getElementById('wallet-historyNext');
@@ -4703,6 +4707,12 @@ function syncModelWalletInput(payload){
 
   function renderHistory(payload,previousPayload){
     var entries=payload && Array.isArray(payload.cachedEntries) && payload.cachedEntries.length ? payload.cachedEntries : (payload && Array.isArray(payload.entries) ? payload.entries : []);
+    var term=historySearch ? historySearch.value.trim().toLowerCase() : '';
+    if(term){
+      entries=entries.filter(function(entry){
+        return ((entry.assetName||'')+' '+(entry.symbol||'')+' '+(entry.status||'')+' '+(entry.amountText||'')).toLowerCase().includes(term);
+      });
+    }
     var previousEntries=previousPayload && Array.isArray(previousPayload.cachedEntries) && previousPayload.cachedEntries.length
       ? previousPayload.cachedEntries
       : (previousPayload && Array.isArray(previousPayload.entries) ? previousPayload.entries : []);
@@ -4710,8 +4720,8 @@ function syncModelWalletInput(payload){
       return [entry && entry.datetimeIso,entry && entry.symbol,entry && entry.amountText,entry && entry.status].join('|');
     }));
     if(!entries.length){
-      historyTableBody.innerHTML='<tr><td colspan=\"5\" class=\"wallet-empty\">No transaction rows found in the live NC Wallet tab.</td></tr>';
-      historyStatus.textContent='Showing 0 rows.';
+      historyTableBody.innerHTML='<tr><td colspan=\"5\" class=\"wallet-empty\">'+(term?'No cached rows match the current filter.':'No transaction rows found in the live NC Wallet tab.')+'</td></tr>';
+      historyStatus.textContent=term?'Showing 0 filtered rows.':'Showing 0 rows.';
       historyPageLabel.textContent='Page 1 / 1';
       historyPrevButton.disabled=true;
       historyNextButton.disabled=true;
@@ -4736,7 +4746,7 @@ function syncModelWalletInput(payload){
         +'<td>'+(entry.status||'--')+(isNew?'<span class=\"wallet-tag\">New</span>':'')+'</td>'
       +'</tr>';
     }).join('');
-    historyStatus.textContent='Showing '+(start+1)+'-'+(start+pageEntries.length)+' of '+entries.length+' cached rows.'+(newRowCount?' '+newRowCount+' new on this page.':'');
+    historyStatus.textContent='Showing '+(start+1)+'-'+(start+pageEntries.length)+' of '+entries.length+(term?' filtered':'')+' cached rows.'+(newRowCount?' '+newRowCount+' new on this page.':'');
     historyPageLabel.textContent='Page '+historyPage+' / '+totalPages;
     historyPrevButton.disabled=historyPage<=1;
     historyNextButton.disabled=historyPage>=totalPages;
@@ -4999,6 +5009,12 @@ function syncModelWalletInput(payload){
     historyPage+=1;
     renderHistory(lastPayload);
   });
+  if(historySearch){
+    historySearch.addEventListener('input',function(){
+      historyPage=1;
+      if(lastPayload) renderHistory(lastPayload);
+    });
+  }
   detailTimeframes.addEventListener('click',function(event){
     var button=event.target.closest('button[data-range-label]');
     if(!button) return;
