@@ -559,6 +559,31 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
       <button class="wallet-history-nav" id="wallet-historyNext" type="button" disabled>Next</button>
     </div>
   </div>
+  <div class="wallet-pane wallet-detail-pane">
+    <div class="wallet-detail-head">
+      <div>
+        <div class="chart-title">Model delta audit</div>
+        <p class="ratio-lead" id="wallet-auditSummary">Recent wallet-sync model deltas will appear here.</p>
+      </div>
+      <span class="wallet-chip" id="wallet-auditCount">0 rows</span>
+    </div>
+    <div class="wallet-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Synced</th>
+            <th>New tx</th>
+            <th>Wallet Δ</th>
+            <th>Model μ</th>
+            <th>Actual μ</th>
+            <th>Error %</th>
+            <th>Holdings Δ</th>
+          </tr>
+        </thead>
+        <tbody id="wallet-auditTableBody"></tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
 <div class="chart-panel" style="margin-bottom:1.25rem;">
@@ -3978,6 +4003,9 @@ run();
   var historyPageLabel=document.getElementById('wallet-historyPage');
   var historyPrevButton=document.getElementById('wallet-historyPrev');
   var historyNextButton=document.getElementById('wallet-historyNext');
+  var auditSummary=document.getElementById('wallet-auditSummary');
+  var auditCount=document.getElementById('wallet-auditCount');
+  var auditTableBody=document.getElementById('wallet-auditTableBody');
   var detailSummary=document.getElementById('wallet-detailSummary');
   var detailState=document.getElementById('wallet-detailState');
   var detailCoinBadge=document.getElementById('wallet-detailCoinBadge');
@@ -4003,6 +4031,7 @@ run();
   var balanceCanvas=document.getElementById('wallet-balanceChart');
   var balanceChart=null;
   var lastPayload=null;
+  var lastAuditItems=[];
   var selectedWalletSymbol=null;
   var historyPage=1;
   var historyPageSize=20;
@@ -4462,6 +4491,60 @@ function syncModelWalletInput(payload){
     historyNextButton.disabled=historyPage>=totalPages;
   }
 
+  function renderAuditRows(items){
+    lastAuditItems=Array.isArray(items) ? items.slice() : [];
+    if(!auditTableBody || !auditSummary || !auditCount) return;
+    if(!lastAuditItems.length){
+      auditSummary.textContent='Recent wallet-sync model deltas will appear here.';
+      auditCount.textContent='0 rows';
+      auditTableBody.innerHTML='<tr><td colspan=\"7\" class=\"wallet-empty\">No saved model delta audits yet.</td></tr>';
+      return;
+    }
+    auditSummary.textContent='Saved sync audits showing new transaction counts, wallet deltas, and latest model versus actual CTC daily rate.';
+    auditCount.textContent=String(lastAuditItems.length)+' rows';
+    auditTableBody.innerHTML=lastAuditItems.map(function(item){
+      var holdings=item && item.holdingsDeltaBySymbol ? Object.keys(item.holdingsDeltaBySymbol).sort().map(function(symbol){
+        var value=Number(item.holdingsDeltaBySymbol[symbol])||0;
+        return (value>=0?'+':'')+value.toFixed(symbol==='HSH'?2:8)+' '+symbol;
+      }).join(' | ') : '';
+      return '<tr>'
+        +'<td>'+(item && item.syncedAt ? formatWhen(item.syncedAt,item.syncedAt) : '--')+'</td>'
+        +'<td>'+(item && Number.isFinite(Number(item.newHistoryRowCount)) ? String(item.newHistoryRowCount) : '--')+'</td>'
+        +'<td>'+((item && Number.isFinite(Number(item.walletTotalUsdDelta))) ? ((Number(item.walletTotalUsdDelta)>=0?'+':'')+Number(item.walletTotalUsdDelta).toFixed(4)+' USD') : '--')+'</td>'
+        +'<td>'+((item && Number.isFinite(Number(item.latestModelRateMicro))) ? Number(item.latestModelRateMicro).toFixed(2) : '--')+'</td>'
+        +'<td>'+((item && Number.isFinite(Number(item.latestActualRateMicro))) ? Number(item.latestActualRateMicro).toFixed(2) : '--')+'</td>'
+        +'<td>'+((item && Number.isFinite(Number(item.latestErrorPercent))) ? ((Number(item.latestErrorPercent)>=0?'+':'')+Number(item.latestErrorPercent).toFixed(2)+'%') : '--')+'</td>'
+        +'<td>'+(holdings || '--')+'</td>'
+      +'</tr>';
+    }).join('');
+  }
+
+  async function loadAuditRows(){
+    if(location.protocol==='file:' || publicDemoMode){
+      if(lastPayload && lastPayload.latestModelDeltaAudit){
+        renderAuditRows([lastPayload.latestModelDeltaAudit]);
+      }
+      return;
+    }
+    try{
+      var response=await fetchWithServerToast('/api/local-db/model-delta-audits',{headers:{accept:'application/json'}});
+      var payload=await response.json();
+      if(!response.ok){
+        throw new Error(payload.detail || payload.error || 'Audit read failed.');
+      }
+      renderAuditRows(Array.isArray(payload.items) ? payload.items : []);
+    } catch(error){
+      if(lastPayload && lastPayload.latestModelDeltaAudit){
+        auditSummary.textContent='Audit history fetch failed, showing latest saved audit only: '+error.message;
+        renderAuditRows([lastPayload.latestModelDeltaAudit]);
+      } else {
+        auditSummary.textContent='Audit history unavailable: '+error.message;
+        auditCount.textContent='0 rows';
+        auditTableBody.innerHTML='<tr><td colspan=\"7\" class=\"wallet-empty\">Audit history unavailable.</td></tr>';
+      }
+    }
+  }
+
   function renderStats(payload){
     var hasWalletOverview=Array.isArray(payload.wallets) && payload.wallets.length>0 && Number(payload.walletTotalUsd)>0;
     totalBalance.textContent=hasWalletOverview ? formatUsd(payload.walletTotalUsd) : '--';
@@ -4513,6 +4596,7 @@ function syncModelWalletInput(payload){
     renderWallets(payload);
     renderHistory(payload);
     renderWalletChart(payload);
+    loadAuditRows();
     if(publicDemoMode){
       applyWalletPanelHashFocus();
     }
@@ -4534,6 +4618,7 @@ function syncModelWalletInput(payload){
     historyPageLabel.textContent='Page 1 / 1';
     historyPrevButton.disabled=true;
     historyNextButton.disabled=true;
+    renderAuditRows([]);
     detailSummary.textContent=message;
     detailState.textContent='Offline';
     detailCoinBadge.textContent='--';

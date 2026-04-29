@@ -838,6 +838,9 @@ function normalizeTodoItem(item) {
     priority: Math.max(1, Math.min(3, Number(item.priority) || 3)),
     task: String(item.task),
     scope: item.scope ? String(item.scope) : "",
+    specialRule: item.specialRule ? String(item.specialRule) : null,
+    specialCycle: Math.max(1, Number(item.specialCycle) || 1),
+    spawnedFrom: item.spawnedFrom ? String(item.spawnedFrom) : null,
     handlerId: item.handlerId || inferTodoHandlerId(item),
     agentRequest: item.agentRequest && item.agentRequest.status ? {
       status: String(item.agentRequest.status),
@@ -849,6 +852,88 @@ function normalizeTodoItem(item) {
     } : null,
     savedAt: new Date().toISOString(),
   };
+}
+
+function slugifyTodoLabel(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40) || "task";
+}
+
+function createTodoId(prefix, label) {
+  return `${prefix}-${slugifyTodoLabel(label)}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function buildRecursiveFollowupTask(cycle) {
+  const recipes = [
+    {
+      priority: 2,
+      task: "Model audit history panel",
+      scope: "Show saved wallet sync audit rows in-app so model deltas can be reviewed without opening exported JSON snapshots.",
+    },
+    {
+      priority: 3,
+      task: "Snapshot export history strip",
+      scope: "Show the latest exported snapshot filename and timestamp near the footer export button for quick operator feedback.",
+    },
+    {
+      priority: 2,
+      task: "Wallet sync source badge",
+      scope: "Expose whether current wallet values come from live wallets, cached wallets, or active-wallet fallback directly in the sync section.",
+    },
+    {
+      priority: 3,
+      task: "Forecast archive axis cleanup",
+      scope: "Tighten dense date-axis readability in the forecast archive views after the main model chart stabilization pass.",
+    },
+  ];
+  const recipe = recipes[(Math.max(1, cycle) - 1) % recipes.length];
+  return {
+    id: createTodoId("recursive-followup", recipe.task),
+    status: "open",
+    priority: recipe.priority,
+    task: recipe.task,
+    scope: recipe.scope,
+    handlerId: inferTodoHandlerId(recipe),
+    agentRequest: null,
+    specialRule: null,
+    specialCycle: 1,
+    spawnedFrom: "recursive-special-task",
+  };
+}
+
+function buildRecursiveSpecialClone(sourceItem) {
+  const nextCycle = Math.max(1, Number(sourceItem && sourceItem.specialCycle) || 1) + 1;
+  return {
+    id: createTodoId("recursive-special", sourceItem && sourceItem.task ? sourceItem.task : "recursive-special-task"),
+    status: "open",
+    priority: Math.max(1, Math.min(3, Number(sourceItem && sourceItem.priority) || 3)),
+    task: sourceItem && sourceItem.task ? String(sourceItem.task) : "Recursive special task",
+    scope: sourceItem && sourceItem.scope ? String(sourceItem.scope) : "",
+    specialRule: "recursive-regenerator",
+    specialCycle: nextCycle,
+    spawnedFrom: sourceItem && sourceItem.id ? String(sourceItem.id) : null,
+    handlerId: sourceItem && sourceItem.handlerId ? String(sourceItem.handlerId) : "manual-review",
+    agentRequest: null,
+  };
+}
+
+function expandRecursiveTodoItems(previousItems, nextItems) {
+  const previousById = new Map((Array.isArray(previousItems) ? previousItems : []).filter((item) => item && item.id).map((item) => [item.id, item]));
+  const expanded = Array.isArray(nextItems) ? nextItems.slice() : [];
+
+  (Array.isArray(nextItems) ? nextItems : []).forEach((item) => {
+    if (!item || item.specialRule !== "recursive-regenerator") return;
+    const previous = previousById.get(item.id);
+    const justCompleted = item.status === "done" && (!previous || previous.status !== "done");
+    if (!justCompleted) return;
+    expanded.push(normalizeTodoItem(buildRecursiveFollowupTask(item.specialCycle)));
+    expanded.push(normalizeTodoItem(buildRecursiveSpecialClone(item)));
+  });
+
+  return expanded;
 }
 
 async function wakeTodoRunner() {
@@ -865,9 +950,11 @@ function persistTodoItems(items) {
   if (!Array.isArray(items)) {
     throw new Error("Todo items payload must be an array.");
   }
-  db.todoItems = items
+  const previousItems = Array.isArray(db.todoItems) ? db.todoItems.slice() : [];
+  const normalizedItems = items
     .filter((item) => item && item.id && item.task)
     .map(normalizeTodoItem);
+  db.todoItems = expandRecursiveTodoItems(previousItems, normalizedItems);
   writeDb(db);
   return {
     saved: true,
@@ -881,6 +968,21 @@ function readTodoItems() {
   return {
     ok: true,
     items: Array.isArray(db.todoItems) ? db.todoItems : [],
+    summary: getDbSummary(db),
+  };
+}
+
+function readModelDeltaAudits(limit = 40) {
+  const db = readDb();
+  const items = Array.isArray(db.modelDeltaAudits) ? db.modelDeltaAudits.slice() : [];
+  items.sort((a, b) => {
+    const aTime = Date.parse(a.syncedAt || a.savedAt || 0) || 0;
+    const bTime = Date.parse(b.syncedAt || b.savedAt || 0) || 0;
+    return bTime - aTime;
+  });
+  return {
+    ok: true,
+    items: items.slice(0, limit),
     summary: getDbSummary(db),
   };
 }
@@ -1424,6 +1526,17 @@ function handleTodoRead(res) {
   }
 }
 
+function handleModelDeltaAuditRead(res) {
+  try {
+    sendJson(res, 200, readModelDeltaAudits());
+  } catch (error) {
+    sendJson(res, 500, {
+      error: "Failed to read model delta audits",
+      detail: formatError(error),
+    });
+  }
+}
+
 function handleBugRead(res) {
   try {
     sendJson(res, 200, readBugItems());
@@ -1520,6 +1633,11 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === "/api/local-db/todo" && req.method === "GET") {
     handleTodoRead(res);
+    return;
+  }
+
+  if (url.pathname === "/api/local-db/model-delta-audits" && req.method === "GET") {
+    handleModelDeltaAuditRead(res);
     return;
   }
 
