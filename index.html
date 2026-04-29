@@ -41,6 +41,10 @@ body.theme-light{
 .header{margin-bottom:1.5rem;}
 .header h1{font-size:18px;font-weight:600;letter-spacing:-.3px;color:var(--text);display:inline-block;cursor:pointer;user-select:none;}
 .header p{font-size:12px;color:var(--text2);margin-top:3px;}
+.section-jump{position:sticky;top:12px;z-index:40;display:flex;gap:8px;flex-wrap:wrap;margin:0 0 1rem;padding:10px 12px;border:1px solid var(--panel-border);border-radius:14px;background:color-mix(in srgb,var(--bg2) 92%,transparent);backdrop-filter:blur(14px);}
+.section-jump button{padding:7px 10px;border:1px solid var(--control-border);border-radius:999px;background:var(--bg3);color:var(--text2);font:600 11px 'DM Sans',sans-serif;cursor:pointer;transition:background .18s ease,color .18s ease,border-color .18s ease,transform .18s ease;}
+.section-jump button:hover{color:var(--text);border-color:var(--accent);}
+.section-jump button.is-active{background:linear-gradient(90deg,var(--accent),var(--accent2));border-color:transparent;color:#fff;transform:translateY(-1px);}
 
 /* Cards grid */
 .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:1.5rem;}
@@ -293,6 +297,8 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
   .wallet-mirror-ranges{grid-template-columns:repeat(5,minmax(52px,1fr));overflow:auto;}
   .ratio-forecast-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
   .ratio-history-tools{align-items:stretch;}
+  .section-jump{top:8px;padding:8px;}
+  .section-jump button{flex:1 1 calc(50% - 8px);}
 }
 </style></head><body>
 
@@ -300,6 +306,14 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
   <h1 id="page-title" title="Toggle day/night theme">NC Wallet - CTC Forecast</h1>
   <p>diecsem - KA4RURVTDIM4YOGLSMXQ</p>
 </div>
+<nav class="section-jump" aria-label="Section shortcuts">
+  <button type="button" data-jump-target="model-summaryPanel" class="is-active">Summary</button>
+  <button type="button" data-jump-target="model-inputsPanel">Inputs</button>
+  <button type="button" data-jump-target="model-ratePanel">Model</button>
+  <button type="button" data-jump-target="wallet-liveSyncPanel">Wallet</button>
+  <button type="button" data-jump-target="ratio-monitorPanel">Ratio</button>
+  <button type="button" data-jump-target="todo-cardPanel">To-Do</button>
+</nav>
 <div class="app-toast-wrap" aria-live="polite" aria-atomic="true">
   <div class="app-toast" id="app-toast" hidden>
     <strong id="app-toastTitle">Local server warning</strong>
@@ -307,7 +321,7 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
   </div>
 </div>
 
-<div class="cards">
+<div class="cards" id="model-summaryPanel">
   <div class="card good">
     <div class="cl">Total CTC earned</div>
     <div class="cv green" id="s-ctc">--</div>
@@ -331,7 +345,7 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
   </div>
 </div>
 
-<div class="panel">
+<div class="panel" id="model-inputsPanel">
   <div class="panel-title">Model inputs</div>
   <div class="sl-row">
     <span class="sl-name">BTC sat / day</span>
@@ -373,7 +387,7 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
   </div>
 </div>
 
-<div class="chart-panel">
+<div class="chart-panel" id="model-ratePanel">
   <div class="chart-title">CTC daily rate - actual vs model vs forecast</div>
   <div class="legend">
     <span class="li"><span style="width:18px;height:2px;background:#90a4ae;display:inline-block;border-radius:1px;"></span>Actual</span>
@@ -409,7 +423,7 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
   <div class="chart-wrap" style="height:140px;"><canvas id="ch2"></canvas></div>
 </div>
 
-<div class="chart-panel" style="margin-bottom:1.25rem;">
+<div class="chart-panel" id="ratio-monitorPanel" style="margin-bottom:1.25rem;">
   <div class="chart-title">Forecast table</div>
   <div class="tbl-wrap">
     <table>
@@ -787,7 +801,7 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
 </div>
 
 <footer class="app-footer">
-  <div class="chart-panel" style="margin-bottom:0;">
+  <div class="chart-panel" id="todo-cardPanel" style="margin-bottom:0;">
     <div class="chart-title">Project To-Do</div>
     <p class="todo-legend">Priority: 🔴 highest, 🟠 medium, 🟡 lower. Priorities are saved into the shared project DB.</p>
     <div class="todo-toolbar">
@@ -1105,6 +1119,42 @@ async function loadDbSummaryMeta(){
   }
 }
 
+function initSectionJump(){
+  var bar=document.querySelector('.section-jump');
+  if(!bar) return;
+  var buttons=[].slice.call(bar.querySelectorAll('button[data-jump-target]'));
+  if(!buttons.length) return;
+  function setActive(id){
+    buttons.forEach(function(button){
+      button.classList.toggle('is-active',button.getAttribute('data-jump-target')===id);
+    });
+  }
+  buttons.forEach(function(button){
+    button.addEventListener('click',function(){
+      var id=button.getAttribute('data-jump-target');
+      var target=id ? document.getElementById(id) : null;
+      if(!target) return;
+      setActive(id);
+      target.scrollIntoView({behavior:'smooth',block:'start'});
+    });
+  });
+  if('IntersectionObserver' in window){
+    var observer=new IntersectionObserver(function(entries){
+      var visible=entries.filter(function(entry){ return entry.isIntersecting; }).sort(function(a,b){
+        return Math.abs(a.boundingClientRect.top)-Math.abs(b.boundingClientRect.top);
+      })[0];
+      if(visible && visible.target && visible.target.id){
+        setActive(visible.target.id);
+      }
+    },{rootMargin:'-18% 0px -62% 0px',threshold:[0.1,0.25,0.5]});
+    buttons.forEach(function(button){
+      var id=button.getAttribute('data-jump-target');
+      var target=id ? document.getElementById(id) : null;
+      if(target) observer.observe(target);
+    });
+  }
+}
+
 async function queueTodoItemInDb(todoId){
   if(location.protocol==='file:') return null;
   var response=await fetchWithServerToast('/api/local-db/todo/queue',{
@@ -1360,6 +1410,7 @@ renderBugTable();
 loadBugItemsFromDb();
 setInterval(loadBugItemsFromDb,8000);
 loadDbSummaryMeta();
+initSectionJump();
 
 function updateSliderMax(){
   var u=document.getElementById('sel-unit').value;
