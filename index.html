@@ -89,6 +89,8 @@ input[type=number]:focus{border-color:var(--accent);}
 .wallet-stat strong{display:block;margin-bottom:6px;font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);}
 .wallet-stat span{display:block;font-family:'DM Mono',monospace;font-size:18px;font-weight:600;color:var(--text);}
 .wallet-stat small{display:block;margin-top:4px;font-size:11px;color:var(--text2);}
+.wallet-stat.is-flash{border-color:color-mix(in srgb,var(--accent3) 55%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--accent3) 28%,transparent),0 10px 24px color-mix(in srgb,var(--accent3) 12%,transparent);}
+.wallet-stat.is-flash span{color:var(--accent3);}
 .wallet-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,.9fr);gap:12px;}
 .wallet-pane{background:var(--bg3);border:1px solid var(--panel-border);border-radius:var(--radius-sm);padding:1rem;}
 .wallet-table-wrap,.wallet-history-wrap{border:1px solid var(--panel-border);border-radius:var(--radius-sm);overflow:auto;}
@@ -109,6 +111,8 @@ input[type=number]:focus{border-color:var(--accent);}
 .wallet-row{cursor:pointer;transition:background .18s ease,color .18s ease;}
 .wallet-row:hover td{background:color-mix(in srgb,var(--accent) 12%,transparent);}
 .wallet-row-active td{background:color-mix(in srgb,var(--accent) 16%,transparent);}
+.wallet-row-new td{background:color-mix(in srgb,var(--accent3) 13%,transparent);}
+.wallet-row-changed td{background:color-mix(in srgb,var(--accent) 12%,transparent);}
 .wallet-detail-pane{margin-top:12px;}
 .wallet-detail-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;}
 .wallet-chip{padding:6px 10px;border:1px solid var(--control-border);border-radius:999px;background:var(--bg2);font:600 11px 'DM Mono',monospace;color:var(--text2);letter-spacing:.08em;text-transform:uppercase;}
@@ -447,22 +451,22 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
     <button class="wallet-action" id="wallet-syncButton" type="button">Sync wallet</button>
   </div>
   <div class="wallet-stats-grid">
-    <div class="wallet-stat">
+    <div class="wallet-stat" id="wallet-totalStat">
       <strong>Total balance</strong>
       <span id="wallet-totalBalance">--</span>
       <small id="wallet-totalBalanceMeta">Waiting for sync.</small>
     </div>
-    <div class="wallet-stat">
+    <div class="wallet-stat" id="wallet-fundedStat">
       <strong>Wallets with funds</strong>
       <span id="wallet-fundedCount">--</span>
       <small id="wallet-fundedCountMeta">Waiting for sync.</small>
     </div>
-    <div class="wallet-stat">
+    <div class="wallet-stat" id="wallet-lastTxStat">
       <strong>Last transaction</strong>
       <span id="wallet-lastTransaction">--</span>
       <small id="wallet-lastTransactionMeta">Waiting for sync.</small>
     </div>
-    <div class="wallet-stat">
+    <div class="wallet-stat" id="wallet-visibleStat">
       <strong>Visible history rows</strong>
       <span id="wallet-visibleCount">--</span>
       <small id="wallet-visibleCountMeta">Waiting for sync.</small>
@@ -4104,6 +4108,10 @@ run();
   var lastTransactionMeta=document.getElementById('wallet-lastTransactionMeta');
   var visibleCount=document.getElementById('wallet-visibleCount');
   var visibleCountMeta=document.getElementById('wallet-visibleCountMeta');
+  var totalStat=document.getElementById('wallet-totalStat');
+  var fundedStat=document.getElementById('wallet-fundedStat');
+  var lastTxStat=document.getElementById('wallet-lastTxStat');
+  var visibleStat=document.getElementById('wallet-visibleStat');
   var syncSourceBadge=document.getElementById('wallet-syncSourceBadge');
   var syncFreshnessBadge=document.getElementById('wallet-syncFreshnessBadge');
   var walletTableBody=document.getElementById('wallet-walletTableBody');
@@ -4341,6 +4349,18 @@ run();
     return text;
   }
 
+  function flashElement(element,className){
+    if(!element) return;
+    var nextClass=className || 'is-flash';
+    element.classList.remove(nextClass);
+    void element.offsetWidth;
+    element.classList.add(nextClass);
+    clearTimeout(element.__flashTimer);
+    element.__flashTimer=setTimeout(function(){
+      element.classList.remove(nextClass);
+    },2200);
+  }
+
   function escapeHtml(value){
     return String(value==null ? '' : value)
       .replace(/&/g,'&amp;')
@@ -4563,16 +4583,23 @@ function syncModelWalletInput(payload){
     }
   }
 
-  function renderWallets(payload){
+  function renderWallets(payload,previousPayload){
     var wallets=payload && Array.isArray(payload.wallets) ? payload.wallets.slice() : [];
     wallets=wallets.filter(function(wallet){ return wallet && wallet.symbol; });
+    var previousWallets=previousPayload && Array.isArray(previousPayload.wallets) ? previousPayload.wallets : [];
     if(!wallets.length){
       walletTableBody.innerHTML='<tr><td colspan=\"4\" class=\"wallet-empty\">No wallet rows found in the live NC Wallet tab.</td></tr>';
       return;
     }
     walletTableBody.innerHTML=wallets.map(function(wallet){
       var changeClass=wallet.changeText && wallet.changeText.trim().indexOf('-')===0 ? 'wallet-negative' : 'wallet-positive';
-      var rowClass='wallet-row'+(selectedWalletSymbol && wallet.symbol===selectedWalletSymbol ? ' wallet-row-active' : '');
+      var previousWallet=previousWallets.find(function(item){ return item && item.symbol===wallet.symbol; });
+      var isChanged=!!previousWallet && (
+        previousWallet.totalUsdText!==wallet.totalUsdText ||
+        previousWallet.balanceText!==wallet.balanceText ||
+        previousWallet.changeText!==wallet.changeText
+      );
+      var rowClass='wallet-row'+(selectedWalletSymbol && wallet.symbol===selectedWalletSymbol ? ' wallet-row-active' : '')+(isChanged ? ' wallet-row-changed' : '');
       return '<tr class=\"'+rowClass+'\" data-wallet-symbol=\"'+(wallet.symbol||'')+'\">'
         +'<td>'+wallet.assetName+(wallet.symbol?' ('+wallet.symbol+')':'')+'</td>'
         +'<td>'+wallet.balanceText+'</td>'
@@ -4582,8 +4609,14 @@ function syncModelWalletInput(payload){
     }).join('');
   }
 
-  function renderHistory(payload){
+  function renderHistory(payload,previousPayload){
     var entries=payload && Array.isArray(payload.cachedEntries) && payload.cachedEntries.length ? payload.cachedEntries : (payload && Array.isArray(payload.entries) ? payload.entries : []);
+    var previousEntries=previousPayload && Array.isArray(previousPayload.cachedEntries) && previousPayload.cachedEntries.length
+      ? previousPayload.cachedEntries
+      : (previousPayload && Array.isArray(previousPayload.entries) ? previousPayload.entries : []);
+    var previousKeys=new Set(previousEntries.map(function(entry){
+      return [entry && entry.datetimeIso,entry && entry.symbol,entry && entry.amountText,entry && entry.status].join('|');
+    }));
     if(!entries.length){
       historyTableBody.innerHTML='<tr><td colspan=\"5\" class=\"wallet-empty\">No transaction rows found in the live NC Wallet tab.</td></tr>';
       historyStatus.textContent='Showing 0 rows.';
@@ -4597,7 +4630,10 @@ function syncModelWalletInput(payload){
     var start=(historyPage-1)*historyPageSize;
     var pageEntries=entries.slice(start,start+historyPageSize);
     historyTableBody.innerHTML=pageEntries.map(function(entry,index){
+      var rowKey=[entry && entry.datetimeIso,entry && entry.symbol,entry && entry.amountText,entry && entry.status].join('|');
+      var rowClass=previousEntries.length && !previousKeys.has(rowKey) ? ' class=\"wallet-row-new\"' : '';
       return '<tr>'
+        .replace('<tr>','<tr'+rowClass+'>')
         +'<td>'+(start+index+1)+'</td>'
         +'<td>'+formatWhen(entry.datetimeIso,entry.datetimeLabel)+'</td>'
         +'<td>'+entry.assetName+(entry.symbol?' ('+entry.symbol+')':'')+'</td>'
@@ -4665,7 +4701,7 @@ function syncModelWalletInput(payload){
     }
   }
 
-  function renderStats(payload){
+  function renderStats(payload,previousPayload){
     var hasWalletOverview=Array.isArray(payload.wallets) && payload.wallets.length>0 && Number(payload.walletTotalUsd)>0;
     if(syncSourceBadge){
       var sourceLabel='Source unknown';
@@ -4714,18 +4750,25 @@ function syncModelWalletInput(payload){
     syncSummary.textContent=payload && payload.demoMode
       ? 'Sanitized demo mirror for public screenshots at '+formatWhen(payload.syncedAt,payload.syncedAt)+'. Balances, identity, and transaction values are intentionally altered.'+dbSuffix
       : 'Live NC Wallet sync from the authenticated browser tab at '+formatWhen(payload.syncedAt,payload.syncedAt)+'.'+cacheSuffix+dbSuffix+auditSuffix;
+    if(previousPayload){
+      if(Number(previousPayload.walletTotalUsd)!==Number(payload.walletTotalUsd)) flashElement(totalStat);
+      if(Number(previousPayload.fundedWalletCount)!==Number(payload.fundedWalletCount)) flashElement(fundedStat);
+      if((previousPayload.lastTransaction && previousPayload.lastTransaction.amountText)!==(payload.lastTransaction && payload.lastTransaction.amountText)) flashElement(lastTxStat);
+      if(Number(previousPayload.visibleCount)!==Number(payload.visibleCount) || Number(payload.cachedHistoryAdded)>0) flashElement(visibleStat);
+    }
   }
 
   function renderPayload(payload){
+    var previousPayload=lastPayload;
     lastPayload=payload;
     historyPage=1;
     window.__ncwalletWalletSnapshot=payload;
     window.dispatchEvent(new CustomEvent('ncwallet:wallet-sync',{detail:payload}));
     syncModelWalletInput(payload);
-    renderStats(payload);
+    renderStats(payload,previousPayload);
     renderWalletDetail(payload);
-    renderWallets(payload);
-    renderHistory(payload);
+    renderWallets(payload,previousPayload);
+    renderHistory(payload,previousPayload);
     renderWalletChart(payload);
     loadAuditRows();
     if(publicDemoMode){
