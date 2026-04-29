@@ -590,6 +590,11 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
       <input class="ratio-search" id="wallet-historySearch" type="search" placeholder="Filter history by asset or status" style="max-width:280px;">
     </div>
     <div class="wallet-history-pager">
+      <select class="select-ui" id="wallet-historyPageSize" aria-label="History page size">
+        <option value="10">10 / page</option>
+        <option value="20" selected>20 / page</option>
+        <option value="50">50 / page</option>
+      </select>
       <button class="wallet-history-nav" id="wallet-historyPrev" type="button" disabled>Prev</button>
       <span class="wallet-history-page" id="wallet-historyPage">Page 1 / 1</span>
       <button class="wallet-history-nav" id="wallet-historyNext" type="button" disabled>Next</button>
@@ -4213,6 +4218,7 @@ run();
   var historyTableBody=document.getElementById('wallet-historyTableBody');
   var historyStatus=document.getElementById('wallet-historyStatus');
   var historySearch=document.getElementById('wallet-historySearch');
+  var historyPageSizeSelect=document.getElementById('wallet-historyPageSize');
   var historyPageLabel=document.getElementById('wallet-historyPage');
   var historyPrevButton=document.getElementById('wallet-historyPrev');
   var historyNextButton=document.getElementById('wallet-historyNext');
@@ -4247,7 +4253,7 @@ run();
   var lastAuditItems=[];
   var selectedWalletSymbol=null;
   var historyPage=1;
-  var historyPageSize=20;
+  var historyPageSize=historyPageSizeSelect ? Number(historyPageSizeSelect.value)||20 : 20;
   var walletDemoNote=document.getElementById('wallet-demoNote');
   var walletQueryParams=new URLSearchParams(location.search);
   var publicDemoMode=walletQueryParams.get('demo')==='1';
@@ -5011,6 +5017,13 @@ function syncModelWalletInput(payload){
   });
   if(historySearch){
     historySearch.addEventListener('input',function(){
+      historyPage=1;
+      if(lastPayload) renderHistory(lastPayload);
+    });
+  }
+  if(historyPageSizeSelect){
+    historyPageSizeSelect.addEventListener('change',function(){
+      historyPageSize=Number(historyPageSizeSelect.value)||20;
       historyPage=1;
       if(lastPayload) renderHistory(lastPayload);
     });
