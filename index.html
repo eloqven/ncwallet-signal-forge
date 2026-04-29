@@ -319,6 +319,7 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
   <button type="button" data-jump-target="wallet-liveSyncPanel">Wallet</button>
   <button type="button" data-jump-target="ratio-monitorPanel">Ratio</button>
   <button type="button" data-jump-target="todo-cardPanel">To-Do</button>
+  <button type="button" id="refresh-livePanels">Refresh live</button>
 </nav>
 <div class="app-toast-wrap" aria-live="polite" aria-atomic="true">
   <div class="app-toast" id="app-toast" hidden>
@@ -1163,6 +1164,34 @@ function initSectionJump(){
   }
 }
 
+function initLivePanelRefresh(){
+  var button=document.getElementById('refresh-livePanels');
+  if(!button) return;
+  button.addEventListener('click',async function(){
+    if(button.disabled) return;
+    button.disabled=true;
+    var previousLabel=button.textContent;
+    button.textContent='Refreshing...';
+    try{
+      if(typeof window.__ncwalletSyncWallet==='function'){
+        await window.__ncwalletSyncWallet();
+      } else {
+        var syncButton=document.getElementById('wallet-syncButton');
+        if(syncButton) syncButton.click();
+      }
+      if(typeof window.__ncwalletRefreshRatio==='function'){
+        await window.__ncwalletRefreshRatio();
+      }
+      showAppToast('Live panels refreshed','Wallet sync and ratio analysis were refreshed together.',3000);
+    } catch(error){
+      showAppToast('Live refresh failed',error.message,4000);
+    } finally {
+      button.disabled=false;
+      button.textContent=previousLabel;
+    }
+  });
+}
+
 async function queueTodoItemInDb(todoId){
   if(location.protocol==='file:') return null;
   var response=await fetchWithServerToast('/api/local-db/todo/queue',{
@@ -1419,6 +1448,7 @@ loadBugItemsFromDb();
 setInterval(loadBugItemsFromDb,8000);
 loadDbSummaryMeta();
 initSectionJump();
+initLivePanelRefresh();
 
 function updateSliderMax(){
   var u=document.getElementById('sel-unit').value;
@@ -3135,6 +3165,7 @@ run();
     await ratioFetchPrices();
     await ratioRefreshAnalysis();
   }
+  window.__ncwalletRefreshRatio=ratioRefreshAll;
 
   async function ratioBatchForecastAllPairs(){
     var tools=window.__ncwalletForecastTools;
@@ -4921,6 +4952,7 @@ function syncModelWalletInput(payload){
     }
   }
 
+  window.__ncwalletSyncWallet=syncWallet;
   syncButton.addEventListener('click',syncWallet);
   historyPrevButton.addEventListener('click',function(){
     if(historyPage<=1 || !lastPayload) return;
