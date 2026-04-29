@@ -4985,13 +4985,17 @@ function syncModelWalletInput(payload){
         var value=Number(item.holdingsDeltaBySymbol[symbol])||0;
         return (value>=0?'+':'')+value.toFixed(symbol==='HSH'?2:8)+' '+symbol;
       }).join(' | ') : '';
+      var walletDeltaValue=Number(item && item.walletTotalUsdDelta);
+      var errorValue=Number(item && item.latestErrorPercent);
+      var walletDeltaClass=walletDeltaValue>0 ? 'wallet-positive' : (walletDeltaValue<0 ? 'wallet-negative' : '');
+      var errorClass=errorValue>0 ? 'wallet-positive' : (errorValue<0 ? 'wallet-negative' : '');
       return '<tr>'
         +'<td>'+(item && item.syncedAt ? formatWhen(item.syncedAt,item.syncedAt) : '--')+'</td>'
         +'<td class=\"num-cell\">'+(item && Number.isFinite(Number(item.newHistoryRowCount)) ? String(item.newHistoryRowCount) : '--')+'</td>'
-        +'<td class=\"num-cell\">'+((item && Number.isFinite(Number(item.walletTotalUsdDelta))) ? ((Number(item.walletTotalUsdDelta)>=0?'+':'')+Number(item.walletTotalUsdDelta).toFixed(4)+' USD') : '--')+'</td>'
+        +'<td class=\"num-cell '+walletDeltaClass+'\">'+((item && Number.isFinite(Number(item.walletTotalUsdDelta))) ? ((Number(item.walletTotalUsdDelta)>=0?'+':'')+Number(item.walletTotalUsdDelta).toFixed(4)+' USD') : '--')+'</td>'
         +'<td class=\"num-cell\">'+((item && Number.isFinite(Number(item.latestModelRateMicro))) ? Number(item.latestModelRateMicro).toFixed(2) : '--')+'</td>'
         +'<td class=\"num-cell\">'+((item && Number.isFinite(Number(item.latestActualRateMicro))) ? Number(item.latestActualRateMicro).toFixed(2) : '--')+'</td>'
-        +'<td class=\"num-cell\">'+((item && Number.isFinite(Number(item.latestErrorPercent))) ? ((Number(item.latestErrorPercent)>=0?'+':'')+Number(item.latestErrorPercent).toFixed(2)+'%') : '--')+'</td>'
+        +'<td class=\"num-cell '+errorClass+'\">'+((item && Number.isFinite(Number(item.latestErrorPercent))) ? ((Number(item.latestErrorPercent)>=0?'+':'')+Number(item.latestErrorPercent).toFixed(2)+'%') : '--')+'</td>'
         +'<td>'+(holdings || '--')+'</td>'
       +'</tr>';
     }).join('');
