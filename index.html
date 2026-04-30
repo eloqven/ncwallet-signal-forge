@@ -372,7 +372,7 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
   </div>
 </div>
 <div class="shortcut-overlay" id="shortcut-overlay" hidden>
-  <div class="shortcut-dialog" role="dialog" aria-modal="true" aria-labelledby="shortcut-title">
+  <div class="shortcut-dialog" role="dialog" aria-modal="true" aria-labelledby="shortcut-title" tabindex="-1">
     <h2 id="shortcut-title">Shortcut Help</h2>
     <p>Press <kbd>Esc</kbd> to close.</p>
     <div class="shortcut-list">
@@ -1413,18 +1413,32 @@ function initSectionAnchors(){
 function initShortcutOverlay(){
   var overlay=document.getElementById('shortcut-overlay');
   if(!overlay) return;
+  var dialog=overlay.querySelector('.shortcut-dialog');
+  var lastFocused=null;
   function setOpen(next){
     overlay.hidden=!next;
+    if(next){
+      lastFocused=document.activeElement && typeof document.activeElement.focus==='function' ? document.activeElement : null;
+      if(dialog && typeof dialog.focus==='function'){
+        setTimeout(function(){ dialog.focus(); },0);
+      }
+      return;
+    }
+    if(lastFocused && typeof lastFocused.focus==='function'){
+      setTimeout(function(){ lastFocused.focus(); },0);
+    }
   }
   document.addEventListener('keydown',function(event){
+    if((event.key==='Escape' || event.key==='Esc') && !overlay.hidden){
+      event.preventDefault();
+      event.stopPropagation();
+      setOpen(false);
+      return;
+    }
     if(event.target && /input|textarea|select/i.test(event.target.tagName)) return;
     if(event.key==='?'){
       event.preventDefault();
       setOpen(overlay.hidden);
-      return;
-    }
-    if(event.key==='Escape' && !overlay.hidden){
-      setOpen(false);
       return;
     }
     if(overlay.hidden && (event.key==='r' || event.key==='R')){
