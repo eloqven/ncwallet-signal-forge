@@ -378,9 +378,9 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
   <div class="shortcut-dialog" role="dialog" aria-modal="true" aria-labelledby="shortcut-title" tabindex="-1">
     <div class="shortcut-head">
       <h2 id="shortcut-title">Shortcut Help</h2>
-      <button class="shortcut-close" id="shortcut-closeButton" type="button" aria-label="Close shortcut help">×</button>
+      <button class="shortcut-close" id="shortcut-closeButton" type="button" aria-label="Close shortcut help" onclick="document.getElementById('shortcut-overlay').hidden=true">×</button>
     </div>
-    <p>Press <kbd>Esc</kbd>, <kbd>X</kbd>, or use the close button.</p>
+    <p>Press <kbd>Esc</kbd>, <kbd>X</kbd>, click outside, or use the close button.</p>
     <div class="shortcut-list">
       <div class="shortcut-item"><span>Open or close this help sheet</span><kbd>?</kbd></div>
       <div class="shortcut-item"><span>Close this help sheet</span><kbd>X</kbd></div>
@@ -1436,24 +1436,31 @@ function initShortcutOverlay(){
       setTimeout(function(){ lastFocused.focus(); },0);
     }
   }
-  document.addEventListener('keydown',function(event){
-    if((event.key==='Escape' || event.key==='Esc') && !overlay.hidden){
+  window.closeShortcutOverlay=function(){
+    setOpen(false);
+  };
+  function handleCloseIntent(event){
+    if(event){
       event.preventDefault();
       event.stopPropagation();
-      setOpen(false);
+    }
+    window.closeShortcutOverlay();
+  }
+  window.addEventListener('keydown',function(event){
+    if((event.key==='Escape' || event.key==='Esc') && !overlay.hidden){
+      handleCloseIntent(event);
       return;
     }
     if((event.key==='x' || event.key==='X') && !overlay.hidden){
-      event.preventDefault();
-      setOpen(false);
+      handleCloseIntent(event);
       return;
     }
-    if(event.target && /input|textarea|select/i.test(event.target.tagName)) return;
     if(event.key==='?'){
       event.preventDefault();
       setOpen(overlay.hidden);
       return;
     }
+    if(event.target && /input|textarea|select/i.test(event.target.tagName)) return;
     if(overlay.hidden && (event.key==='r' || event.key==='R')){
       var refreshButton=document.getElementById('refresh-livePanels');
       if(refreshButton){ event.preventDefault(); refreshButton.click(); }
@@ -1473,14 +1480,14 @@ function initShortcutOverlay(){
       var ratio=document.getElementById('ratio-monitorPanel');
       if(ratio){ event.preventDefault(); ratio.scrollIntoView({behavior:'smooth',block:'start'}); }
     }
-  });
+  },true);
   overlay.addEventListener('click',function(event){
     if(event.target===overlay) setOpen(false);
   });
   if(closeButton){
-    closeButton.addEventListener('click',function(){
-      setOpen(false);
-    });
+    closeButton.setAttribute('onclick',"if(window.closeShortcutOverlay){window.closeShortcutOverlay();}else{document.getElementById('shortcut-overlay').hidden=true;}return false;");
+    closeButton.addEventListener('pointerdown',handleCloseIntent);
+    closeButton.addEventListener('click',handleCloseIntent);
   }
 }
 
