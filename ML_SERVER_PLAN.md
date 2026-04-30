@@ -108,6 +108,15 @@ Actual fields in code:
 - ML sidecar ingests that raw data into a structured database
 - ML sidecar exposes placeholder prediction endpoints until sample count is sufficient
 
+## Current Checkpoint
+The sidecar already exists and should be extended, not replaced.
+
+Current implementation focus:
+- keep reading `data/surf-db.json`
+- expose inspection routes before training routes
+- normalize saved signal snapshots into stable feature rows
+- measure coverage honestly before any model claims
+
 ## Proposed Database
 Use SQLite first. Keep raw tables close to current JSON shapes, then add derived tables.
 
@@ -326,6 +335,103 @@ Acceptance:
 - training job reads `feature_rows`
 - model metadata is written to `model_registry`
 - metrics are stored even if weak
+
+## 8 Hour Sprint Story Plan
+### Hour 1: feature extraction baseline
+Story:
+- turn `signalViews[]` into one deterministic feature row per saved view
+
+Implementation:
+- normalize pair, timeframe, MA mode, prices, ratio value, RSI, labels, forecast fields
+- derive compact bar metrics from `dataset.bars`
+
+Acceptance:
+- `GET /api/features/preview` returns stable rows from the current JSON store
+- rows are traceable back to `dedupeKey`
+
+### Hour 2: readiness inspection
+Story:
+- show how much usable pair/timeframe data actually exists
+
+Implementation:
+- group feature rows by pair and timeframe
+- count total rows, forecast-labeled rows, and latest sample time
+
+Acceptance:
+- `GET /api/readiness` exposes pair/timeframe coverage
+- missing forecast labels are visible, not hidden
+
+### Hour 3: SQLite bootstrap import
+Story:
+- move raw JSON inputs into SQLite raw tables without losing traceability
+
+Implementation:
+- bootstrap `raw_signal_views`, `raw_wallet_syncs`, and `raw_wallet_page_views`
+- upsert by current dedupe/content keys
+
+Acceptance:
+- rerunning bootstrap does not explode duplicates
+- imported counts can be compared to source counts
+
+### Hour 4: persisted derived feature rows
+Story:
+- persist extracted feature rows instead of computing them only in memory
+
+Implementation:
+- add `feature_rows`
+- store schema version, anchor time, derived metrics, and target fields
+
+Acceptance:
+- feature rows can be rebuilt from raw tables
+- schema version stays attached to every derived row
+
+### Hour 5: forecast outcome resolver
+Story:
+- connect old saved forecasts to later observed data so the sidecar can score outcomes
+
+Implementation:
+- backfill resolved actuals where later bars already exist
+- write errors into `forecast_actuals`
+
+Acceptance:
+- at least one forecast can resolve to an actual path
+- unresolved forecasts remain explicitly unresolved
+
+### Hour 6: supervised export path
+Story:
+- export clean, labeled rows for first-pass training experiments
+
+Implementation:
+- add a dataset export route or job
+- exclude unlabeled rows unless explicitly requested
+
+Acceptance:
+- exported rows are traceable back to source snapshots
+- labeled and unlabeled counts are reported separately
+
+### Hour 7: baseline model runner
+Story:
+- prove the end-to-end ML path with one conservative baseline run
+
+Implementation:
+- run one simple baseline model and one naive benchmark
+- store run metadata and metrics in `model_registry`
+
+Acceptance:
+- a local training run completes on current data
+- outputs are versioned and inspectable
+
+### Hour 8: ML lab inspection surface
+Story:
+- expose model/data state in one small page that is easy to inspect
+
+Implementation:
+- show counts, readiness, latest trained model, and latest scored forecast batch
+- keep it separate from the main dashboard UI
+
+Acceptance:
+- a dev can tell what data exists, what is missing, and what the next ML step should be
+- the sidecar has one human-readable inspection page
 
 ## First Branch Cut
 Suggested branch name: `feat/ml-sidecar-foundation`
