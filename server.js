@@ -516,14 +516,20 @@ function summarizeNcwalletEntries(entries) {
   });
 }
 
-function buildWalletHistoryRow(entry, syncedAt) {
-  if (!entry || !entry.assetName || !entry.amountText) return null;
-  const contentKey = [
+function buildWalletHistoryContentKey(entry) {
+  if (!entry) return "";
+  const amountValue = roundNumber(Number(entry.amountValue), 12);
+  return [
     entry.datetimeIso || entry.datetimeLabel || "",
-    entry.assetName || "",
-    entry.amountText || "",
+    entry.assetName || entry.symbol || "",
+    Number.isFinite(amountValue) ? amountValue.toFixed(12) : entry.amountText || "",
     entry.status || "",
   ].join("__");
+}
+
+function buildWalletHistoryRow(entry, syncedAt) {
+  if (!entry || !entry.assetName || !entry.amountText) return null;
+  const contentKey = buildWalletHistoryContentKey(entry);
   const savedAt = new Date().toISOString();
   return {
     contentKey,
@@ -551,7 +557,7 @@ function appendWalletHistoryRows(db, payload) {
   }
 
   const indexByKey = new Map(
-    db.walletHistoryRows.map((row, index) => [row.contentKey, index]),
+    db.walletHistoryRows.map((row, index) => [buildWalletHistoryContentKey(row), index]),
   );
   let addedCount = 0;
   const addedRows = [];

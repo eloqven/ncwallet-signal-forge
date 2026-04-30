@@ -441,8 +441,8 @@ body.theme-light .app-toast{background:rgba(255,255,255,0.98);border-color:rgba(
   </div>
   <div class="sl-row">
     <span class="sl-name">Wallet ex-CTC/HSH ($)</span>
-    <input type="range" id="sl-wallet" min="0.01" max="100" value="8.66" step="0.01" style="flex:1;">
-    <input type="number" id="in-wallet" min="0.01" max="99999" value="8.66" step="0.01">
+    <input type="range" id="sl-wallet" min="0.01" max="100" value="8.66" step="0.0001" style="flex:1;">
+    <input type="number" id="in-wallet" min="0.01" max="99999" value="8.66" step="0.0001">
   </div>
   <div class="sl-row">
     <span class="sl-name">BTC price (USD)</span>
@@ -1737,7 +1737,7 @@ function syncWalletSlider(value){
   var slider=document.getElementById('sl-wallet');
   var nextMax=Math.max(100, Math.ceil(safeValue));
   slider.max=nextMax;
-  slider.value=Math.min(safeValue,nextMax).toFixed(2);
+  slider.value=Math.min(safeValue,nextMax).toFixed(4);
 }
 
 function modelMean(values){
@@ -1940,7 +1940,7 @@ function syncModelFromWalletPayload(payload){
 
   var modelWalletUsd=computeModelWalletUsd(payload);
   if(Number.isFinite(modelWalletUsd)){
-    document.getElementById('in-wallet').value=modelWalletUsd.toFixed(2);
+    document.getElementById('in-wallet').value=modelWalletUsd.toFixed(4);
     syncWalletSlider(modelWalletUsd);
   }
 
@@ -2269,7 +2269,7 @@ function run(){
 
 document.getElementById('sl-price').addEventListener('input',function(){document.getElementById('in-price').value=parseFloat(this.value).toFixed(3);run();});
 document.getElementById('in-price').addEventListener('input',function(){document.getElementById('sl-price').value=Math.min(parseFloat(this.value)||0,10);run();});
-document.getElementById('sl-wallet').addEventListener('input',function(){document.getElementById('in-wallet').value=parseFloat(this.value).toFixed(2);run();});
+document.getElementById('sl-wallet').addEventListener('input',function(){document.getElementById('in-wallet').value=parseFloat(this.value).toFixed(4);run();});
 document.getElementById('in-wallet').addEventListener('input',function(){syncWalletSlider(parseFloat(this.value)||0.01);run();});
 document.getElementById('sl-btcprice').addEventListener('input',function(){document.getElementById('in-btcprice').value=this.value;run();});
 document.getElementById('in-btcprice').addEventListener('input',function(){document.getElementById('sl-btcprice').value=Math.min(parseFloat(this.value)||72198,260000);run();});
