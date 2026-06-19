@@ -1,8 +1,12 @@
 const http = require("http");
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
 const { spawn } = require("child_process");
 
 const ROOT = process.cwd();
 const HOST = "127.0.0.1";
+const ML_SMOKE_SQLITE = path.join(os.tmpdir(), `ncwallet-smoke-ml-${process.pid}.sqlite`);
 
 const services = [
   {
@@ -35,7 +39,11 @@ const services = [
   {
     name: "ML sidecar",
     command: ["node", ["ml-sidecar/server.js"]],
-    env: { ML_SIDECAR_HOST: HOST, ML_SIDECAR_PORT: "45280" },
+    env: {
+      ML_SIDECAR_HOST: HOST,
+      ML_SIDECAR_PORT: "45280",
+      ML_SIDECAR_SQLITE_PATH: ML_SMOKE_SQLITE,
+    },
     url: "http://127.0.0.1:45280/health",
   },
   {
@@ -114,4 +122,10 @@ async function withService(service) {
 })().catch((error) => {
   console.error(error.message);
   process.exit(1);
+}).finally(() => {
+  for (const file of [ML_SMOKE_SQLITE, `${ML_SMOKE_SQLITE}-wal`, `${ML_SMOKE_SQLITE}-shm`]) {
+    try {
+      fs.unlinkSync(file);
+    } catch {}
+  }
 });

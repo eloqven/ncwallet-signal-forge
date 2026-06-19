@@ -5,3 +5,5 @@ apps/corridor-forge/current-report.json
 apps/corridor-forge/fit-labels.jsonl
 apps/corridor-forge/ml-brain-model.json
 apps/corridor-forge/signal-lab.pid
+ml-sidecar/db/*.sqlite
+ml-sidecar/db/*.sqlite-*

@@ -110,6 +110,8 @@ ML scaffold:
 node ml-sidecar/server.js
 ```
 
+The ML sidecar reads feature inputs from `data/surf-db.json`. When the running Node version provides `node:sqlite`, prediction calls also persist forecast runs to `ml-sidecar/db/ml-sidecar.sqlite`.
+
 Corridor Forge:
 
 ```powershell
