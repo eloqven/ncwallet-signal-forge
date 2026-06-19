@@ -1,6 +1,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const { createMainRequestHandler } = require("./lib/main-request-handler");
 
 const HOST = process.env.NCWALLET_APP_HOST || "127.0.0.1";
 const PORT = Number(process.env.NCWALLET_APP_PORT || 4173);
@@ -1671,86 +1672,7 @@ function serveFile(res, filePath) {
   });
 }
 
-const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url, `http://${req.headers.host}`);
-
-  if (url.pathname === "/health") {
-    sendJson(res, 200, { ok: true, service: "ncwallet-main", host: HOST, port: PORT });
-    return;
-  }
-
-  if (url.pathname.startsWith("/api/binance/")) {
-    await handleBinanceProxy(res, url);
-    return;
-  }
-
-  if (url.pathname === "/api/ncwallet/history") {
-    await handleNcwalletHistory(res);
-    return;
-  }
-
-  if (url.pathname === "/api/ncwallet/range" && req.method === "POST") {
-    await handleNcwalletRange(req, res);
-    return;
-  }
-
-  if (url.pathname === "/api/local-db/summary" && req.method === "GET") {
-    handleDbSummary(res);
-    return;
-  }
-
-  if (url.pathname === "/api/local-db/export" && req.method === "POST") {
-    handleDbExport(res);
-    return;
-  }
-
-  if (url.pathname === "/api/local-db/exports" && req.method === "GET") {
-    handleExportListRead(res);
-    return;
-  }
-
-  if (url.pathname === "/api/local-db/todo" && req.method === "GET") {
-    handleTodoRead(res);
-    return;
-  }
-
-  if (url.pathname === "/api/local-db/model-delta-audits" && req.method === "GET") {
-    handleModelDeltaAuditRead(res);
-    return;
-  }
-
-  if (url.pathname === "/api/local-db/bugs" && req.method === "GET") {
-    handleBugRead(res);
-    return;
-  }
-
-  if (url.pathname === "/api/local-db/todo" && req.method === "POST") {
-    await handleTodoStore(req, res);
-    return;
-  }
-
-  if (url.pathname === "/api/local-db/bugs" && req.method === "POST") {
-    await handleBugStore(req, res);
-    return;
-  }
-
-  if (url.pathname === "/api/local-db/todo/queue" && req.method === "POST") {
-    await handleTodoQueue(req, res);
-    return;
-  }
-
-  if (url.pathname === "/api/local-db/signal-view" && req.method === "POST") {
-    await handleSignalViewStore(req, res);
-    return;
-  }
-
-  const pathname = url.pathname === "/" ? "/index.html" : url.pathname;
-  const filePath = safeJoin(ROOT, pathname);
-  if (!filePath) {
-    sendJson(res, 403, { error: "Forbidden" });
-    return;
-  }
-
+function serveStaticPath(res, filePath) {
   fs.stat(filePath, (err, stats) => {
     if (err || !stats.isFile()) {
       sendJson(res, 404, { error: "Not found" });
@@ -1758,7 +1680,29 @@ const server = http.createServer(async (req, res) => {
     }
     serveFile(res, filePath);
   });
-});
+}
+
+const server = http.createServer(createMainRequestHandler({
+  host: HOST,
+  port: PORT,
+  root: ROOT,
+  sendJson,
+  safeJoin,
+  serveStaticPath,
+  handleBinanceProxy,
+  handleNcwalletHistory,
+  handleNcwalletRange,
+  handleDbSummary,
+  handleDbExport,
+  handleExportListRead,
+  handleTodoRead,
+  handleModelDeltaAuditRead,
+  handleBugRead,
+  handleTodoStore,
+  handleBugStore,
+  handleTodoQueue,
+  handleSignalViewStore,
+}));
 
 server.listen(PORT, HOST, () => {
   console.log(`NC Wallet local server running at http://${HOST}:${PORT}`);

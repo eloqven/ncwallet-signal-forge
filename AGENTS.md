@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This repository is a local NC Wallet research workspace. The main dashboard shell lives in `index.html`, with browser assets in `assets/dashboard.css` and `assets/dashboard.js`; the primary local server is `server.js` on `127.0.0.1:4173`. Sidecars are split by responsibility: `gatherer-sidecar/` for browser-driven wallet gathering, `todo-runner-sidecar/` for queued automation, and `ml-sidecar/` for feature previews and future model work. `static-data/` is a read-only archive viewer. `apps/corridor-forge/` contains the 30-minute signal corridor lab. Screenshots and visual proof live under `docs/screenshots/`.
+This repository is a local NC Wallet research workspace. The main dashboard shell lives in `index.html`, with browser assets in `assets/dashboard.css` and `assets/dashboard.js`; the primary local server is `server.js` on `127.0.0.1:4173`, with request routing in `lib/main-request-handler.js`. Sidecars are split by responsibility: `gatherer-sidecar/` for browser-driven wallet gathering, `todo-runner-sidecar/` for queued automation, and `ml-sidecar/` for feature previews and future model work. `static-data/` is a read-only archive viewer. `apps/corridor-forge/` contains the 30-minute signal corridor lab. Screenshots and visual proof live under `docs/screenshots/`.
 
 ## Build, Test, and Development Commands
 

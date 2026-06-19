@@ -34,7 +34,7 @@ That is what this repo is built for.
   The main dashboard shell. Dashboard styling and browser logic live in `assets/dashboard.css` and `assets/dashboard.js`.
 
 - `server.js`
-  The local app server on `127.0.0.1:4173`. It serves the dashboard and owns the shared local DB at `data/surf-db.json`.
+  The local app server on `127.0.0.1:4173`. It owns the shared local DB at `data/surf-db.json`; request routing lives in `lib/main-request-handler.js`.
 
 - `gatherer-sidecar/server.js`
   The gatherer on `127.0.0.1:4290`. It uses the authenticated NC Wallet browser session to surf funded wallet coin pages and save page snapshots.
@@ -248,6 +248,7 @@ That separation helps keep "build this" different from "this already exists but 
 .
 |-- index.html
 |-- server.js
+|-- lib/
 |-- package.json
 |-- assets/
 |-- tests/
