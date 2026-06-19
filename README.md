@@ -31,7 +31,7 @@ That is what this repo is built for.
 ## Main pieces
 
 - `index.html`
-  The main dashboard UI. This is where the wallet mirror, model charts, ratio monitor, forecast archive, to-do list, and bug list live.
+  The main dashboard shell. Dashboard styling and browser logic live in `assets/dashboard.css` and `assets/dashboard.js`.
 
 - `server.js`
   The local app server on `127.0.0.1:4173`. It serves the dashboard and owns the shared local DB at `data/surf-db.json`.
@@ -249,6 +249,7 @@ That separation helps keep "build this" different from "this already exists but 
 |-- index.html
 |-- server.js
 |-- package.json
+|-- assets/
 |-- tests/
 |-- data/
 |-- gatherer-sidecar/
