@@ -5,6 +5,7 @@ const path = require('path');
 
 const ROOT = __dirname;
 const EXPORTS = path.join(ROOT, 'exports');
+const HOST = process.env.SIGNAL_LAB_HOST || '127.0.0.1';
 const PORT = Number(process.env.SIGNAL_LAB_PORT || 4186);
 const TEMPLATE_HTML = path.join(EXPORTS, 'coins-mentioned-30m-report-2026-05-19.html');
 const TEMPLATE_JSON = path.join(EXPORTS, 'coins-mentioned-30m-report-2026-05-19.json');
@@ -160,12 +161,53 @@ function patchChartRuntime(html) {
 }
 
 async function serveReport(res, file) {
+  if (!file) {
+    send(res, 200, fallbackReportHtml(), 'text/html; charset=utf-8');
+    return;
+  }
   try {
     const html = patchChartRuntime(await fs.readFile(file, 'utf8'));
     send(res, 200, injectSignalLabControls(html, path.basename(file)), 'text/html; charset=utf-8');
   } catch {
     send(res, 404, { error: 'report not found' });
   }
+}
+
+function fallbackReportHtml() {
+  const data = {
+    generatedAt: isoLocal(),
+    densityLabel: '30m',
+    densityMinutes: 30,
+    forecastLengthHours: 24,
+    pointCount: 0,
+    coins: [],
+    actualSnapshots: [],
+  };
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>30m Signal Lab</title>
+  <style>
+    body{margin:0;background:#0b111c;color:#eaf5ff;font-family:Segoe UI,Arial,sans-serif}
+    main{min-height:100vh;display:grid;place-items:center;padding:32px}
+    .panel{max-width:720px;border:1px solid #263a5d;background:#101a2d;padding:28px;border-radius:8px}
+    h1{margin:0 0 12px;font-size:28px}
+    p{line-height:1.6;color:#aebed4}
+    code{color:#80e6ff}
+  </style>
+</head>
+<body>
+  <main>
+    <section class="panel">
+      <h1>30m Signal Lab</h1>
+      <p>No forecast export is available yet. Generate a report or copy a <code>coins-mentioned-30m-report-*.html</code> export into <code>apps/corridor-forge/exports/</code>.</p>
+    </section>
+  </main>
+  <script id="report-data" type="application/json">${JSON.stringify(data, null, 2)}</script>
+</body>
+</html>`;
 }
 
 function isoLocal(ms = Date.now()) {
@@ -370,7 +412,10 @@ async function currentReportFile() {
     const file = path.resolve(EXPORTS, state.name || '');
     if (file.startsWith(EXPORTS) && (await fs.stat(file)).isFile()) return file;
   } catch {}
-  return TEMPLATE_HTML;
+  try {
+    if ((await fs.stat(TEMPLATE_HTML)).isFile()) return TEMPLATE_HTML;
+  } catch {}
+  return null;
 }
 
 async function setCurrentReport(name) {
@@ -434,7 +479,9 @@ async function readReportData(file) {
 }
 
 async function forecastList() {
-  const current = path.basename(await currentReportFile());
+  await fs.mkdir(EXPORTS, { recursive: true });
+  const currentFile = await currentReportFile();
+  const current = currentFile ? path.basename(currentFile) : '';
   const entries = await fs.readdir(EXPORTS, { withFileTypes: true });
   const files = entries
     .filter((entry) => entry.isFile() && /^coins-mentioned-30m-report-.*\.html$/i.test(entry.name))
@@ -1283,6 +1330,7 @@ function injectSignalLabControls(html, activeName) {
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
+    if (url.pathname === '/health') return send(res, 200, { ok: true, service: 'corridor-forge', host: HOST, port: PORT });
     if (url.pathname === '/' || url.pathname === '/report/30m') return serveReport(res, await currentReportFile());
     if (url.pathname.startsWith('/report/')) {
       const name = decodeURIComponent(url.pathname.slice('/report/'.length));
@@ -1310,7 +1358,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`30m Signal Lab running at http://127.0.0.1:${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`30m Signal Lab running at http://${HOST}:${PORT}`);
   fs.writeFile(path.join(ROOT, 'signal-lab.pid'), String(process.pid), 'utf8').catch(() => {});
 });

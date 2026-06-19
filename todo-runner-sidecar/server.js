@@ -1,8 +1,9 @@
 const http = require("http");
 
-const PORT = 4295;
-const MAIN_APP_BASE = "http://127.0.0.1:4173";
-const GATHERER_BASE = "http://127.0.0.1:4290";
+const HOST = process.env.TODO_RUNNER_HOST || "127.0.0.1";
+const PORT = Number(process.env.TODO_RUNNER_PORT || 4295);
+const MAIN_APP_BASE = process.env.TODO_RUNNER_MAIN_APP_BASE || "http://127.0.0.1:4173";
+const GATHERER_BASE = process.env.TODO_RUNNER_GATHERER_BASE || "http://127.0.0.1:4290";
 const POLL_MS = 3000;
 
 const state = {
@@ -278,6 +279,6 @@ const server = http.createServer(async (req, res) => {
   sendJson(res, 404, { error: "Not found" });
 });
 
-server.listen(PORT, "127.0.0.1", () => {
-  console.log(`Todo runner sidecar listening on http://127.0.0.1:${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`Todo runner sidecar listening on http://${HOST}:${PORT}`);
 });

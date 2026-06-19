@@ -5,11 +5,151 @@ const { URL } = require('url');
 
 const HOST = process.env.ML_SIDECAR_HOST || '127.0.0.1';
 const PORT = Number(process.env.ML_SIDECAR_PORT || 4280);
-const SURF_DB_PATH = path.resolve(__dirname, '../data/surf-db.json');
+const SURF_DB_PATH = process.env.ML_SIDECAR_SURF_DB_PATH
+  ? path.resolve(process.env.ML_SIDECAR_SURF_DB_PATH)
+  : path.resolve(__dirname, '../data/surf-db.json');
+const SQLITE_DB_PATH = process.env.ML_SIDECAR_SQLITE_PATH || path.join(__dirname, 'db', 'ml-sidecar.sqlite');
+const SQLITE_SCHEMA_PATH = path.join(__dirname, 'db', 'schema.sql');
 const FEATURE_SCHEMA_VERSION = 'v0-preview';
+const MODEL_NAME = 'signal-view-placeholder';
+const MODEL_VERSION = `${FEATURE_SCHEMA_VERSION}-sqlite`;
+
+function loadSqliteDriver() {
+  try {
+    return { ok: true, module: require('node:sqlite') };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error && error.code === 'ERR_UNKNOWN_BUILTIN_MODULE'
+        ? 'node:sqlite is unavailable in this Node.js version'
+        : error.message,
+    };
+  }
+}
+
+function openSqliteStore() {
+  const driver = loadSqliteDriver();
+  if (!driver.ok) {
+    return { ok: false, reason: driver.error, path: SQLITE_DB_PATH };
+  }
+  try {
+    fs.mkdirSync(path.dirname(SQLITE_DB_PATH), { recursive: true });
+    const db = new driver.module.DatabaseSync(SQLITE_DB_PATH);
+    db.exec(fs.readFileSync(SQLITE_SCHEMA_PATH, 'utf8'));
+    return { ok: true, db, path: SQLITE_DB_PATH, driver: 'node:sqlite' };
+  } catch (error) {
+    return { ok: false, reason: error.message, path: SQLITE_DB_PATH };
+  }
+}
+
+function withSqliteStore(callback) {
+  const store = openSqliteStore();
+  if (!store.ok) {
+    return { ok: false, persisted: false, reason: store.reason, path: store.path };
+  }
+  try {
+    return callback(store.db, store);
+  } finally {
+    try {
+      store.db.close();
+    } catch {}
+  }
+}
+
+function sqliteStorageStatus() {
+  const store = openSqliteStore();
+  if (!store.ok) {
+    return {
+      ok: false,
+      available: false,
+      path: store.path,
+      reason: store.reason,
+      schemaPath: SQLITE_SCHEMA_PATH,
+    };
+  }
+  try {
+    const row = store.db.prepare('SELECT COUNT(*) AS count FROM forecast_runs').get();
+    return {
+      ok: true,
+      available: true,
+      path: store.path,
+      schemaPath: SQLITE_SCHEMA_PATH,
+      driver: store.driver,
+      forecastRuns: row ? row.count : 0,
+    };
+  } finally {
+    try {
+      store.db.close();
+    } catch {}
+  }
+}
+
+function persistForecastRun(pair, latestView, latestFeature, predictionPayload) {
+  if (!latestView || !predictionPayload || !predictionPayload.prediction) {
+    return { ok: false, persisted: false, reason: 'no prediction payload' };
+  }
+  return withSqliteStore((db, store) => {
+    const prediction = predictionPayload.prediction;
+    const result = db.prepare(`
+      INSERT INTO forecast_runs (
+        pair_key,
+        model_name,
+        model_version,
+        anchor_time,
+        horizon_label,
+        prediction_json,
+        created_at,
+        status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      pair,
+      MODEL_NAME,
+      MODEL_VERSION,
+      prediction.anchorTime || latestFeature?.capturedAt || null,
+      prediction.horizonLabel || null,
+      JSON.stringify({
+        pair,
+        latestFeature,
+        prediction,
+        modelStatus: predictionPayload.modelStatus,
+      }),
+      new Date().toISOString(),
+      predictionPayload.modelStatus || 'placeholder'
+    );
+
+    return {
+      ok: true,
+      persisted: true,
+      path: store.path,
+      runId: Number(result.lastInsertRowid),
+      modelName: MODEL_NAME,
+      modelVersion: MODEL_VERSION,
+    };
+  });
+}
+
+function recentForecastRuns(limit = 20) {
+  return withSqliteStore((db) => {
+    const rows = db.prepare(`
+      SELECT
+        id,
+        pair_key AS pair,
+        model_name AS modelName,
+        model_version AS modelVersion,
+        anchor_time AS anchorTime,
+        horizon_label AS horizonLabel,
+        created_at AS createdAt,
+        status
+      FROM forecast_runs
+      ORDER BY id DESC
+      LIMIT ?
+    `).all(limit);
+    return { ok: true, items: rows };
+  });
+}
 
 function readSurfDb() {
-  const raw = fs.readFileSync(SURF_DB_PATH, 'utf8');
+  const raw = fs.readFileSync(SURF_DB_PATH, 'utf8').replace(/^\uFEFF/, '');
   const parsed = JSON.parse(raw);
   return {
     meta: parsed.meta || {},
@@ -324,12 +464,9 @@ function buildSummary(db) {
       featureSchemaVersion: FEATURE_SCHEMA_VERSION,
       previewRoute: '/api/features/preview',
       readinessRoute: '/api/readiness',
+      storageRoute: '/api/storage',
     },
-    storage: {
-      sqliteSchema: path.join(__dirname, 'db', 'schema.sql'),
-      sqliteMigrations: path.join(__dirname, 'db', 'migrations'),
-      sqliteFilePlanned: path.join(__dirname, 'db', 'ml-sidecar.sqlite'),
-    },
+    storage: sqliteStorageStatus(),
   };
 }
 
@@ -452,13 +589,16 @@ function buildReadiness(db) {
 }
 
 function handleHealth(res) {
+  const storage = sqliteStorageStatus();
   sendJson(res, 200, {
     ok: true,
     service: 'ml-sidecar',
+    host: HOST,
     port: PORT,
     surfDbPath: SURF_DB_PATH,
     surfDbPresent: fs.existsSync(SURF_DB_PATH),
     featureSchemaVersion: FEATURE_SCHEMA_VERSION,
+    storage,
     checkedAt: new Date().toISOString(),
   });
 }
@@ -487,6 +627,18 @@ function handleReadiness(res) {
       detail: error.message,
     });
   }
+}
+
+function handleStorage(res, requestUrl) {
+  const limit = parseLimit(requestUrl.searchParams.get('limit'), 20, 100);
+  const status = sqliteStorageStatus();
+  const recentRuns = status.available ? recentForecastRuns(limit) : { ok: false, items: [], reason: status.reason };
+  sendJson(res, status.available ? 200 : 503, {
+    ok: status.available,
+    storage: status,
+    recentForecastRuns: recentRuns.items || [],
+    reason: recentRuns.reason || status.reason || null,
+  });
 }
 
 function handleFeaturesPreview(res, requestUrl) {
@@ -566,10 +718,14 @@ function handlePredict(res, rawPair) {
       String(view.quoteSymbol || '').toUpperCase() === parsedPair.quote
     ).length;
     const payload = buildPlaceholderPrediction(latestView);
+    const persistence = latestView
+      ? persistForecastRun(parsedPair.pair, latestView, latestFeature, payload)
+      : { ok: false, persisted: false, reason: 'no pair data' };
 
     sendJson(res, latestView ? 200 : 404, {
       ok: Boolean(latestView),
       pair: parsedPair.pair,
+      persistence,
       samples: sampleCount,
       latestCapturedAt: latestView ? getCapturedAt(latestView) : null,
       latestTimeframe: latestView ? latestView.timeframe || null : null,
@@ -604,6 +760,7 @@ function handleIndex(res) {
     '<ul>',
     '<li><a href="/health">/health</a></li>',
     '<li><a href="/api/summary">/api/summary</a></li>',
+    '<li><a href="/api/storage">/api/storage</a></li>',
     '<li><a href="/api/readiness">/api/readiness</a></li>',
     '<li><a href="/api/features/preview">/api/features/preview</a></li>',
     '<li><a href="/api/features/preview?pair=BTC_ETH">/api/features/preview?pair=BTC_ETH</a></li>',
@@ -634,6 +791,10 @@ const server = http.createServer((req, res) => {
   }
   if (requestUrl.pathname === '/api/summary') {
     handleSummary(res);
+    return;
+  }
+  if (requestUrl.pathname === '/api/storage') {
+    handleStorage(res, requestUrl);
     return;
   }
   if (requestUrl.pathname === '/api/readiness') {
