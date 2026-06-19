@@ -2,9 +2,10 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
-const PORT = 4173;
+const HOST = process.env.NCWALLET_APP_HOST || "127.0.0.1";
+const PORT = Number(process.env.NCWALLET_APP_PORT || 4173);
 const ROOT = __dirname;
-const DEVTOOLS_LIST_URL = "http://127.0.0.1:9222/json/list";
+const DEVTOOLS_LIST_URL = process.env.NCWALLET_DEVTOOLS_LIST_URL || "http://127.0.0.1:9222/json/list";
 const NCW_APP_PREFIX = "https://app.ncwallet.net/";
 const DB_DIR = path.join(ROOT, "data");
 const DB_FILE = path.join(DB_DIR, "surf-db.json");
@@ -1673,6 +1674,11 @@ function serveFile(res, filePath) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
+  if (url.pathname === "/health") {
+    sendJson(res, 200, { ok: true, service: "ncwallet-main", host: HOST, port: PORT });
+    return;
+  }
+
   if (url.pathname.startsWith("/api/binance/")) {
     await handleBinanceProxy(res, url);
     return;
@@ -1754,6 +1760,6 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
-server.listen(PORT, "127.0.0.1", () => {
-  console.log(`NC Wallet local server running at http://127.0.0.1:${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`NC Wallet local server running at http://${HOST}:${PORT}`);
 });

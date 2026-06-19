@@ -55,7 +55,7 @@ That is what this repo is built for.
 - An authenticated NC Wallet browser session
 - A Chromium browser started with remote debugging on port `9222`
 
-The sidecars in this repo use built-in Node modules only. There is no root `package.json` and no install step is required for the current code path.
+The current services use built-in Node modules only, but the repository includes a root `package.json` so CI and local smoke checks have stable commands.
 
 ## Quick start
 
@@ -69,7 +69,16 @@ The project expects the authenticated wallet page to be visible through:
 
 If you already have a prompted browser window from your local agent workflow, keep using that one.
 
-### 2. Start the main dashboard server
+### 2. Install and verify the workspace
+
+```powershell
+npm ci
+npm test
+```
+
+`npm test` runs syntax checks plus service smoke checks against temporary localhost ports.
+
+### 3. Start the main dashboard server
 
 ```powershell
 node server.js
@@ -81,7 +90,7 @@ Then open:
 http://127.0.0.1:4173
 ```
 
-### 3. Optional sidecars
+### 4. Optional sidecars
 
 Gatherer:
 
@@ -99,6 +108,12 @@ ML scaffold:
 
 ```powershell
 node ml-sidecar/server.js
+```
+
+Corridor Forge:
+
+```powershell
+node apps/corridor-forge/server.js
 ```
 
 ## Daily use
@@ -169,6 +184,21 @@ It stores things like:
 
 This file is intentionally gitignored in the repo because it can contain personal wallet-derived data.
 
+## Configuration
+
+Defaults are local-only and can be overridden with environment variables. Copy `.env.example` when you need a reference for ports and service URLs.
+
+Key defaults:
+
+- Main dashboard: `127.0.0.1:4173`
+- Gatherer sidecar: `127.0.0.1:4290`
+- ML sidecar: `127.0.0.1:4280`
+- Todo runner: `127.0.0.1:4295`
+- Corridor Forge: `127.0.0.1:4186`
+- Browser DevTools: `http://127.0.0.1:9222/json/list`
+
+Keep these services bound to localhost unless you have added your own network protections. Local data and browser-control endpoints can expose wallet-derived research state.
+
 ## Project To-Do
 
 The `Project To-Do` block in the app footer exists because this project is not a normal static codebase. It is a live workspace shared between:
@@ -216,10 +246,13 @@ That separation helps keep "build this" different from "this already exists but 
 .
 |-- index.html
 |-- server.js
+|-- package.json
+|-- tests/
 |-- data/
 |-- gatherer-sidecar/
 |-- todo-runner-sidecar/
 |-- ml-sidecar/
+|-- apps/corridor-forge/
 |-- static-data/
 `-- ML_SERVER_PLAN.md
 ```

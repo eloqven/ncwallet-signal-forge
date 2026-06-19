@@ -2,10 +2,11 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
-const PORT = 4290;
+const HOST = process.env.GATHERER_SIDECAR_HOST || "127.0.0.1";
+const PORT = Number(process.env.GATHERER_SIDECAR_PORT || 4290);
 const ROOT = path.join(__dirname, "..");
-const MAIN_APP_BASE = "http://127.0.0.1:4173";
-const DEVTOOLS_LIST_URL = "http://127.0.0.1:9222/json/list";
+const MAIN_APP_BASE = process.env.GATHERER_MAIN_APP_BASE || "http://127.0.0.1:4173";
+const DEVTOOLS_LIST_URL = process.env.GATHERER_DEVTOOLS_LIST_URL || "http://127.0.0.1:9222/json/list";
 const NCW_APP_PREFIX = "https://app.ncwallet.net/";
 const NCW_PIN_DIGITS = ["7", "4", "5", "6"];
 const DB_FILE = path.join(ROOT, "data", "surf-db.json");
@@ -1110,6 +1111,6 @@ const server = http.createServer(async (req, res) => {
   sendJson(res, 404, { error: "Not found" });
 });
 
-server.listen(PORT, "127.0.0.1", () => {
-  console.log(`NC Wallet gatherer sidecar listening on http://127.0.0.1:${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`NC Wallet gatherer sidecar listening on http://${HOST}:${PORT}`);
 });

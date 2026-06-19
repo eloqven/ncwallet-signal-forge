@@ -1,0 +1,14 @@
+{
+  "name": "ncwallet-signal-forge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local NC Wallet research workspace and sidecar services.",
+  "scripts": {
+    "check:syntax": "node --check server.js && node --check gatherer-sidecar/server.js && node --check todo-runner-sidecar/server.js && node --check ml-sidecar/server.js && node --check apps/corridor-forge/server.js && node --check tests/smoke-services.js",
+    "test:smoke": "node tests/smoke-services.js",
+    "test": "npm run check:syntax && npm run test:smoke"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
